@@ -145,7 +145,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       avatarIcon: formData.avatarIcon,
       isActive: formData.isActive,
       catatan: formData.catatan.trim(),
-      pin: editingUser?.pin || (formData.role === 'administrator' || formData.role === 'admin_custom' ? '1234' : undefined),
       customPermissions: formData.role === 'admin_custom' ? formData.customPermissions : undefined,
       createdAt: editingUser?.createdAt || new Date().toLocaleString('id-ID'),
     };

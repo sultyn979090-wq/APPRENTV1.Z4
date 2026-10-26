@@ -13,15 +13,21 @@ import {
   formatRupiah,
   isOutsideOperationalHours,
   parseWibToEpoch,
+  epochToWibInput,
   getAvailableUnitsForModel,
-  isUnitAvailableForRange,
+  calculateDynamicRentalTariff,
 } from '../services/bookingEngine';
 import {
   generateBookingConfirmationWhatsAppUrl,
   generateCourierTaskWhatsAppUrl,
   generateStandardBookingTemplateText,
 } from '../services/whatsappService';
-import { parseWhatsAppBookingChat, STANDARD_BOOKING_TEMPLATE_TEXT } from '../utils/whatsappChatParser';
+import {
+  parseWhatsAppBookingChat,
+  STANDARD_BOOKING_TEMPLATE_TEXT,
+  normalizeTimeInput,
+  normalizeDateInput,
+} from '../utils/whatsappChatParser';
 import { copyText } from '../utils/clipboard';
 import {
   X,
@@ -39,10 +45,6 @@ import {
   ChevronUp,
 } from 'lucide-react';
 
-const pad = (n: number) => String(n).padStart(2, '0');
-export const toLocalInput = (d: Date): string =>
-  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
 interface NewBookingModalProps {
   db: RyokoDatabase;
   onClose: () => void;
@@ -59,20 +61,35 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
 
   const [kategoriTarif, setKategoriTarif] = useState<TariffCategory>('harian');
   const [pilihanDurasi, setPilihanDurasi] = useState<DurationOption>('1_hari');
+  const [selectedPackageId, setSelectedPackageId] = useState<number>(() => (db.packages.length > 0 ? db.packages[0].id : 0));
+  const selectedPackage = useMemo(() => db.packages.find(p => p.id === selectedPackageId), [db.packages, selectedPackageId]);
 
-  // Dates default: today at 09:00 WIB until tomorrow 09:00 WIB (Local WIB time)
+  // Dates default: today at 09:00 WIB until tomorrow 09:00 WIB (eksplisit Asia/Jakarta)
+  // User Directive: pisahkan kolom tanggal dan jam
   const defaultDates = useMemo(() => {
-    const start = new Date();
-    start.setHours(9, 0, 0, 0);
-    const startStr = toLocalInput(start);
-
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    const endStr = toLocalInput(end);
-    return { startStr, endStr };
+    const now = new Date();
+    const todayYmd = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+    const tomorrowYmd = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(now.getTime() + 24 * 3600 * 1000));
+    return { todayYmd, tomorrowYmd, defaultTime: '09:00' };
   }, []);
 
-  const [jamTanggalMulai, setJamTanggalMulai] = useState<string>(defaultDates.startStr);
-  const [jamTanggalSelesai, setJamTanggalSelesai] = useState<string>(defaultDates.endStr);
+  const [tglMulai, setTglMulai] = useState<string>(defaultDates.todayYmd);
+  const [jamMulai, setJamMulai] = useState<string>(defaultDates.defaultTime);
+  const [tglSelesai, setTglSelesai] = useState<string>(defaultDates.tomorrowYmd);
+  const [jamSelesai, setJamSelesai] = useState<string>(defaultDates.defaultTime);
+
+  const jamTanggalMulai = useMemo(() => `${tglMulai}T${jamMulai}`, [tglMulai, jamMulai]);
+  const jamTanggalSelesai = useMemo(() => `${tglSelesai}T${jamSelesai}`, [tglSelesai, jamSelesai]);
 
   // 13-Field Standard Booking State
   const [nama, setNama] = useState<string>('');
@@ -100,6 +117,7 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
   const [showChatParser, setShowChatParser] = useState<boolean>(false);
   const [chatRawInput, setChatRawInput] = useState<string>('');
   const [parseSuccessMsg, setParseSuccessMsg] = useState<string | null>(null);
+  const [parseWarnings, setParseWarnings] = useState<string[]>([]);
 
   const handleApplyChatText = (textOverride?: string) => {
     const raw = textOverride || chatRawInput;
@@ -114,8 +132,16 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
     if (parsed.idSosmed) setIdSosmed(parsed.idSosmed);
     if (parsed.nomorWa) setNomorWa(parsed.nomorWa);
     if (parsed.teleponDarurat) setNoTelpDarurat(parsed.teleponDarurat);
-    if (parsed.jamTanggalMulai) setJamTanggalMulai(parsed.jamTanggalMulai);
-    if (parsed.jamTanggalSelesai) setJamTanggalSelesai(parsed.jamTanggalSelesai);
+    if (parsed.jamTanggalMulai) {
+      const [d, t] = parsed.jamTanggalMulai.split('T');
+      if (d) setTglMulai(normalizeDateInput(d));
+      if (t) setJamMulai(normalizeTimeInput(t));
+    }
+    if (parsed.jamTanggalSelesai) {
+      const [d, t] = parsed.jamTanggalSelesai.split('T');
+      if (d) setTglSelesai(normalizeDateInput(d));
+      if (t) setJamSelesai(normalizeTimeInput(t));
+    }
     if (parsed.lokasiDelivery) setAlamatPengantaran(parsed.lokasiDelivery);
     if (parsed.lokasiPengembalian) setAlamatPenjemputan(parsed.lokasiPengembalian);
     if (parsed.jumlahHelm) setJumlahHelm(parsed.jumlahHelm);
@@ -133,7 +159,12 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
       }
     }
 
-    setParseSuccessMsg(`Data 13-poin berhasil diekstrak: ${parsed.nama || 'Penyewa'} (${parsed.jenisMotorKeyword || 'Motor'})`);
+    setParseWarnings(parsed.warnings || []);
+    setParseSuccessMsg(
+      `Data chat berhasil diekstrak: ${parsed.nama || 'Penyewa'}${
+        parsed.jenisMotorKeyword ? ` (${parsed.jenisMotorKeyword})` : ''
+      }`
+    );
     setTimeout(() => setParseSuccessMsg(null), 5000);
   };
 
@@ -142,50 +173,44 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
     return isOutsideOperationalHours(jamTanggalMulai) || isOutsideOperationalHours(jamTanggalSelesai);
   }, [jamTanggalMulai, jamTanggalSelesai]);
 
-  // Compute duration label & price (BR-01 Revisi: 1 Bulan menggantikan 2 Minggu)
-  const { totalHarga, labelDurasi } = useMemo(() => {
-    if (!selectedMotor) return { totalHarga: 85000, labelDurasi: '1 Hari (24 Jam)' };
-
-    if (kategoriTarif === 'harian') {
-      if (pilihanDurasi === '1_minggu') {
-        return { totalHarga: selectedMotor.harga1Minggu, labelDurasi: '1 Minggu (7 Hari)' };
-      }
-      if (pilihanDurasi === '1_bulan') {
-        const bulanan = selectedMotor.harga1Bulan || (selectedMotor.harga1Hari * 22);
-        return { totalHarga: bulanan, labelDurasi: '1 Bulan (30 Hari)' };
-      }
-      return { totalHarga: selectedMotor.harga1Hari, labelDurasi: '1 Hari (24 Jam)' };
-    }
-
-    if (kategoriTarif === 'jam') {
-      if (pilihanDurasi === '3_jam') {
-        return { totalHarga: selectedMotor.harga3Jam, labelDurasi: 'ShortRent 3 Jam' };
-      }
-      if (pilihanDurasi === '6_jam') {
-        return { totalHarga: selectedMotor.harga6Jam, labelDurasi: 'ShortRent 6 Jam' };
-      }
-      if (pilihanDurasi === '9_jam') {
-        return { totalHarga: selectedMotor.harga9Jam, labelDurasi: 'ShortRent 9 Jam' };
-      }
-      return { totalHarga: selectedMotor.harga12Jam, labelDurasi: 'ShortRent 12 Jam' };
-    }
-
-    return { totalHarga: 260000, labelDurasi: 'Paket Promo Wisata' };
-  }, [selectedMotor, kategoriTarif, pilihanDurasi]);
-
   const startEpoch = parseWibToEpoch(jamTanggalMulai);
   const endEpoch = parseWibToEpoch(jamTanggalSelesai);
+
+  // Compute duration label & price (BR-01 Revisi & F-03: Kalkulasi rentang multi-hari dinamis)
+  const { totalHarga, labelDurasi } = useMemo(() => {
+    if (!selectedMotor) return { totalHarga: 85000, labelDurasi: '1 Hari (24 Jam)' };
+    return calculateDynamicRentalTariff(
+      selectedMotor,
+      kategoriTarif,
+      pilihanDurasi,
+      startEpoch,
+      endEpoch,
+      selectedPackage
+    );
+  }, [selectedMotor, kategoriTarif, pilihanDurasi, startEpoch, endEpoch, selectedPackage]);
 
   const availableUnits = useMemo(() => {
     if (!selectedMotor || endEpoch <= startEpoch) return [];
     return getAvailableUnitsForModel(selectedMotor.id, startEpoch, endEpoch, db);
   }, [selectedMotor, startEpoch, endEpoch, db]);
 
-  // Adjust end date automatically when duration changes using local time
+  // Sinkronisasi otomatis selectedUnitId dengan daftar unit bebas (F-04)
+  React.useEffect(() => {
+    if (availableUnits.length > 0) {
+      const exists = availableUnits.some(u => u.unit.id === selectedUnitId);
+      if (!exists) {
+        setSelectedUnitId(availableUnits[0].unit.id);
+      }
+    } else {
+      setSelectedUnitId(0);
+    }
+  }, [availableUnits, selectedUnitId]);
+
+  // Adjust end date automatically when duration changes (WIB safe)
   const handleDurationChange = (dur: DurationOption) => {
     setPilihanDurasi(dur);
-    const startDate = new Date(jamTanggalMulai);
-    if (isNaN(startDate.getTime())) return;
+    const startEp = parseWibToEpoch(jamTanggalMulai);
+    if (!startEp) return;
 
     let hoursToAdd = 24;
     if (dur === '3_jam') hoursToAdd = 3;
@@ -196,8 +221,11 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
     else if (dur === '1_minggu') hoursToAdd = 24 * 7;
     else if (dur === '1_bulan') hoursToAdd = 24 * 30; // 30 hari
 
-    const endDate = new Date(startDate.getTime() + hoursToAdd * 60 * 60 * 1000);
-    setJamTanggalSelesai(toLocalInput(endDate));
+    const endEp = startEp + hoursToAdd * 3600;
+    const endIso = epochToWibInput(endEp);
+    const [d, t] = endIso.split('T');
+    if (d) setTglSelesai(d);
+    if (t) setJamSelesai(t);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -206,18 +234,12 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
       alert('Mohon isi nama penyewa.');
       return;
     }
-
-    if (endEpoch <= startEpoch) {
-      alert('Jadwal selesai harus lebih lambat dari jadwal mulai.');
+    if (!nomorWa.trim()) {
+      alert('Mohon isi nomor WhatsApp penyewa.');
       return;
     }
-
-    const chosenUnit = lockUnitImmediately && selectedUnitId
-      ? db.units.find(u => u.id === selectedUnitId)
-      : null;
-
-    if (chosenUnit && !isUnitAvailableForRange(chosenUnit.id, startEpoch, endEpoch, db)) {
-      alert(`Unit ${chosenUnit.kodeUnit} tidak lagi tersedia pada rentang waktu ini (bentrok jadwal / sedang diservis). Silakan pilih unit lain.`);
+    if (!startEpoch || !endEpoch || endEpoch <= startEpoch) {
+      alert('Jadwal selesai sewa harus lebih besar dari jadwal mulai.');
       return;
     }
 
@@ -231,6 +253,10 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
       ' ' +
       new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
       ' WIB';
+
+    const chosenUnit = lockUnitImmediately && selectedUnitId
+      ? db.units.find(u => u.id === selectedUnitId)
+      : null;
 
     const newBooking: BookingRecord = {
       id: Date.now(),
@@ -267,7 +293,6 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
       approvedAt: chosenUnit ? nowStr : undefined,
       dendaNominal: 0,
       dendaKeterangan: 'Belum ada denda',
-      dendaHarianPerJamSnapshot: selectedMotor.dendaHarianPerJam || 20000,
     };
 
     onSubmitBooking(newBooking, chosenUnit ? chosenUnit.id : undefined);
@@ -300,7 +325,7 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs text-slate-200">
+        <form id="new-booking-form" onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs text-slate-200">
           {/* Smart WhatsApp Chat Parser Box */}
           <div className="bg-gradient-to-r from-emerald-950/60 to-cyan-950/40 border border-emerald-700/50 rounded-xl p-3 shadow-sm">
             <div className="flex items-center justify-between">
@@ -353,25 +378,25 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
                       type="button"
                       onClick={() => {
                         const sample = `*FORM PEMESANAN SEWA MOTOR RYOKO RENT*
-1. Nama : Ridho berkati
-2. Alamat sesuai KTP : JL. Pek raya harmoni II
+1. Nama : Budi Santoso
+2. Alamat sesuai KTP : Jl. Ijen No. 45, Malang
 3. Id pendukung : SIM C
-4. Alamat saat ini : Apartemen Begawan Malang
-5. Id sosmed : @ridhoxw
-6. No telp : 085845595139
-7. No telp darurat : 081316784701
-8. Jadwal mulai : 24 Oktober 15.40
-9. Jadwal selesai : 25 Oktober 15.00
-10. Lokasi pengantaran : Apartemen Begawan Malang
-11. Lokasi penjemputan : Apartemen Begawan Malang
-12. Model unit : Honda Scoopy
+4. Alamat saat ini : Hotel Grand Mercure Malang
+5. Id sosmed : @budi_santoso
+6. No telp : 081234567890
+7. No telp darurat : 081987654321
+8. Jadwal mulai : 28 Oktober 15:40
+9. Jadwal selesai : 29 Oktober 15:00
+10. Lokasi pengantaran : Stasiun Kotabaru Malang
+11. Lokasi penjemputan : Hotel Grand Mercure Malang
+12. Model unit : Honda Vario 125
 13. Jumlah helm : 2 Helm`;
                         setChatRawInput(sample);
                         handleApplyChatText(sample);
                       }}
                       className="text-[10px] text-cyan-300 hover:text-cyan-200 underline font-medium"
                     >
-                      💡 Muat Contoh Chat (Ridho - Begawan)
+                      💡 Muat Contoh Chat (Budi - Stasiun)
                     </button>
                     <button
                       type="button"
@@ -403,6 +428,20 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
               <div className="mt-2 text-xs font-semibold text-emerald-300 bg-emerald-950/80 border border-emerald-600/60 rounded-lg p-2 flex items-center gap-1.5 animate-fadeIn">
                 <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span>{parseSuccessMsg}</span>
+              </div>
+            )}
+
+            {parseWarnings.length > 0 && (
+              <div className="mt-2 text-xs text-amber-200 bg-amber-950/60 border border-amber-600/60 rounded-lg p-2.5 space-y-1 animate-fadeIn">
+                <div className="flex items-center gap-1.5 font-bold text-amber-300 text-[11px]">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Perhatian Hasil Baca Chat ({parseWarnings.length} Catatan):</span>
+                </div>
+                <ul className="list-disc list-inside space-y-0.5 text-[10px] text-amber-100/90 pl-1">
+                  {parseWarnings.map((w, idx) => (
+                    <li key={idx}>{w}</li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>
@@ -569,34 +608,80 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
               <span className="text-[11px] text-slate-400">Jeda Turnaround Buffer: 60 Menit</span>
             </div>
 
-            {/* Poin 8 & 9: Jadwal Mulai & Jadwal Selesai */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-semibold mb-1 text-slate-200 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>8. Jadwal Mulai (Ambil / Delivery):</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={jamTanggalMulai}
-                  onChange={e => setJamTanggalMulai(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-cyan-500 outline-none"
-                  required
-                />
+            {/* Poin 8 & 9: Jadwal Mulai & Jadwal Selesai (Kolom Tanggal & Jam Terpisah - TASK-027) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {/* Poin 8: Jadwal Mulai */}
+              <div className="bg-slate-900/70 p-3 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-200 flex items-center gap-1.5 text-cyan-300 font-bold">
+                    <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>8. Jadwal Mulai (Ambil / Delivery):</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">{tglMulai} {jamMulai} WIB</span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  <div className="col-span-3">
+                    <span className="text-[10px] text-slate-400 block mb-0.5 font-medium">Tanggal Mulai:</span>
+                    <input
+                      type="date"
+                      value={tglMulai}
+                      onChange={e => setTglMulai(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-cyan-500 outline-none"
+                      required
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-400 block mb-0.5 font-medium">Jam (WIB):</span>
+                    <input
+                      type="text"
+                      value={jamMulai}
+                      onChange={e => setJamMulai(e.target.value)}
+                      onBlur={e => setJamMulai(normalizeTimeInput(e.target.value))}
+                      placeholder="09:00"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-cyan-500 outline-none"
+                      title="Contoh: 4, 4.00, 4,00, atau 04:00"
+                      required
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 italic">Bebas tulis jam: 4, 4.00, 4,00, atau 04:00</p>
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1 text-slate-200 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>9. Jadwal Selesai (Pengembalian):</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={jamTanggalSelesai}
-                  onChange={e => setJamTanggalSelesai(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-cyan-500 outline-none"
-                  required
-                />
+              {/* Poin 9: Jadwal Selesai */}
+              <div className="bg-slate-900/70 p-3 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-200 flex items-center gap-1.5 text-amber-300 font-bold">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>9. Jadwal Selesai (Pengembalian):</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">{tglSelesai} {jamSelesai} WIB</span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  <div className="col-span-3">
+                    <span className="text-[10px] text-slate-400 block mb-0.5 font-medium">Tanggal Selesai:</span>
+                    <input
+                      type="date"
+                      value={tglSelesai}
+                      onChange={e => setTglSelesai(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-cyan-500 outline-none"
+                      required
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-400 block mb-0.5 font-medium">Jam (WIB):</span>
+                    <input
+                      type="text"
+                      value={jamSelesai}
+                      onChange={e => setJamSelesai(e.target.value)}
+                      onBlur={e => setJamSelesai(normalizeTimeInput(e.target.value))}
+                      placeholder="09:00"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-cyan-500 outline-none"
+                      title="Contoh: 4, 4.00, 4,00, atau 04:00"
+                      required
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 italic">Bebas tulis jam: 4, 4.00, 4,00, atau 04:00</p>
               </div>
             </div>
 
@@ -768,12 +853,15 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
 
                 {kategoriTarif === 'paket' && (
                   <select
-                    value={pilihanDurasi}
-                    onChange={e => handleDurationChange(e.target.value as DurationOption)}
+                    value={selectedPackageId}
+                    onChange={e => {
+                      setSelectedPackageId(Number(e.target.value));
+                      handleDurationChange('paket_promo');
+                    }}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-white"
                   >
                     {db.packages.map(p => (
-                      <option key={p.id} value="paket_promo">
+                      <option key={p.id} value={p.id}>
                         {p.namaPaket} — {formatRupiah(p.hargaPaket)}
                       </option>
                     ))}
@@ -884,9 +972,9 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
             Batal
           </button>
           <button
-            type="button"
-            onClick={handleSubmit}
-            className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950 flex items-center gap-1.5 transition active:scale-95"
+            type="submit"
+            form="new-booking-form"
+            className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Simpan Transaksi Booking</span>

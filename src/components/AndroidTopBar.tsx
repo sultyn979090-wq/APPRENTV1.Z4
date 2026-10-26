@@ -56,23 +56,6 @@ export const AndroidTopBar: React.FC<AndroidTopBarProps> = ({
   };
 
   const handleSelectUser = (id: string) => {
-    if (id === activeUser.id) {
-      setIsSwitcherOpen(false);
-      return;
-    }
-
-    const target = allUsers.find(u => u.id === id);
-    if (target?.pin) {
-      const entered = window.prompt(`Masukkan PIN 4-digit keamanan untuk beralih ke ${target.nama} (PIN demo: ${target.pin}):`);
-      if (entered === null) {
-        return; // User dibatalkan
-      }
-      if (entered.trim() !== target.pin) {
-        alert('PIN salah. Akses pergantian akun ditolak.');
-        return;
-      }
-    }
-
     onSwitchUser(id);
     setIsSwitcherOpen(false);
   };

@@ -1,6 +1,6 @@
-# BLUEPRINT: RyokoRent Android APK (v3.2.2)
+# BLUEPRINT: RyokoRent Android APK (v3.5.0)
 
-> **Metodologi:** Zero-Loss Context Engineering (ZLCE) v3.2.2  
+> **Metodologi:** Zero-Loss Context Engineering (ZLCE) v3.5.0  
 > **Status Dokumen:** DISETUJUI & DIREVISI DENGAN FEEDBACK PENGGUNA  
 > **Mode:** LITE (Profil Domain: `booking`)  
 
@@ -9,12 +9,12 @@
 ## 1. PARAMETER & LINGKUNGAN PROYEK
 
 - **Nama Proyek:** RyokoRent Android APK
-- **Deskripsi:** Aplikasi Android APK (Progressive Web App Standalone) untuk administrasi rental sepeda motor (Ryoko Rent Malang & Batu) dengan database penyimpanan offline LocalStorage, state machine dengan status diservis, pelacakan armada unit fisik (termasuk penugasan kurir), panel catatan servis rutin 7 kategori, penyesuaian tarif bulanan, dan integrasi WhatsApp.
+- **Deskripsi:** Aplikasi Android APK (Progressive Web App Standalone) untuk administrasi rental sepeda motor (Ryoko Rent Malang & Batu) dengan database penyimpanan offline LocalStorage, state machine 6 status (termasuk diservis dan soft-cancel dibatalkan), pelacakan armada unit fisik (termasuk penugasan kurir), panel catatan servis rutin 7 kategori, penyesuaian tarif deal awal murni, pemisahan kolom tanggal dan jam dengan normalisasi input fleksibel, serta integrasi WhatsApp & Google Sheets.
 - **Tech Stack:**
   - Frontend: React 19, TypeScript, Vite 8, Tailwind CSS v4, Motion
-  - Platform/Mobile: VitePWA, Web App Manifest Standalone, Service Worker, Android Icons
-  - Database & Storage: LocalStorage (`ryokourent_db_v1`) dengan auto-persistence, quota monitoring, JSON export/import
-  - Integrasi: WhatsApp Web/App via `api.whatsapp.com` (UTF-8 URL encoded)
+  - Platform/Mobile: VitePWA (mode prompt), Web App Manifest Standalone, Service Worker, Android Icons
+  - Database & Storage: LocalStorage (`ryokourent_db_v1`) dengan corrupt DB backup otomatis, auto-snapshot sebelum restore, unified schema migration, structuredClone immutability, quota monitoring, JSON export/import
+  - Integrasi: WhatsApp Web/App via `api.whatsapp.com` (UTF-8 URL encoded, honest link tanpa nomor dummy), Google Sheets webhook dengan offline retry queue
 
 ### Tabel Dependensi Kunci
 
@@ -23,22 +23,29 @@
 | `react` / `react-dom` | `^19.0.1` | UI Library & Hooks |
 | `vite` | `^8.3.0` | Build tool & bundler |
 | `@tailwindcss/vite` | `^4.3.3` | Utility styling engine |
-| `vite-plugin-pwa` | `^2.0.0` | PWA service worker, web manifest, offline assets |
+| `vite-plugin-pwa` | `^2.0.0` | PWA service worker (mode prompt), web manifest, offline assets |
 | `lucide-react` | `^0.546.0` | Clean iconography |
 | `motion` | `^12.23.24` | Micro-interactions |
+| `recharts` | `^3.10.1` | Visual analytics grafik tren pendapatan & okupansi |
 | `typescript` | `^7.0.2` | Type-safety & compile verification |
 
 ---
 
-## 2. BATASAN DOMAIN & ATURAN BISNIS (REVISI)
+## 2. BATASAN DOMAIN & ATURAN BISNIS (REVISI STANDAR)
 
-- **BR-01 (Katalog Multi-Tier dengan Paket 1 Bulan):** Tarif mencakup tarif harian (1 Hari, 1 Minggu, **1 Bulan** — menggantikan 2 Minggu) dan ShortRent jam (3, 6, 9, 12 Jam).
-- **BR-02 (State Machine & Status Unit Termasuk Diservis):**
-  - `ryokou_booking`: Pemesanan baru, menunggu approval & penguncian unit fisik garasi.
-  - `ryokou_approved`: Unit fisik telah dikunci, menunggu serah terima motor.
-  - `ryokou_disewa`: Motor sedang dibawa penyewa (dilindungi proteksi anti-hapus D-20).
+- **BR-01 (Katalog Multi-Tier & Aturan Tarif Deal Awal - Revisi F-03 P0):** 
+  - Tarif mencakup tarif harian (1 Hari, 1 Minggu, **1 Bulan** — menggantikan 2 Minggu) dan ShortRent jam (3, 6, 9, 12 Jam).
+  - **Aturan Deal Awal Mutlak:** Sistem dilarang merubah perhitungan sendiri secara sepihak. Perhitungan tarif sewa wajib mengikuti kesepakatan/deal awal yang dipilih pelanggan saat pemesanan.
+  - *Contoh Kasus:* Jika pelanggan deal awal sewa Harian (`1_hari`), meskipun durasi sewa mencapai 8 hari atau lebih, perhitungan tetap $8 \times \text{harga 1 hari}$ (tidak boleh otomatis dikonversi menjadi 1 minggu + 1 hari). Tarif paket mingguan (`1_minggu`) atau bulanan (`1_bulan`) hanya dihitung bila dari awal disepakati/dipilih paket tersebut.
+  - **Fallback Anti-NaN ShortRent:** Perhitungan tarif sewa jam-jaman wajib memiliki fallback default aman (`harga3Jam || 45000`, `harga6Jam || 60000`, `harga9Jam || 75000`, `harga12Jam || 85000`) untuk mencegah nilai `NaN`.
+- **BR-02 (State Machine 6 Status & Proteksi Unit Garasi):**
+  - `ryokou_booking`: Pemesanan baru, menunggu approval & alokasi unit fisik garasi.
+  - `ryokou_approved`: Unit fisik telah dialokasikan/dikunci, menunggu serah terima motor.
+  - `ryokou_disewa`: Motor telah diserahterimakan ke penyewa (dilindungi proteksi anti-hapus D-20).
   - `ryokou_diservis`: Unit sedang dalam perbaikan rutin atau penanganan insiden bengkel.
   - `ryokou_selesai`: Motor kembali ke Pool Malang/Batu, denda dihitung otomatis.
+  - `ryokou_dibatalkan`: Pembatalan pemesanan secara lembut (*soft-cancellation*) untuk menjaga kelengkapan audit trail.
+  - **Proteksi Posisi Unit Baru:** Saat booking baru dibuat (`ryokou_booking` atau `ryokou_approved`), unit fisik garasi yang dialokasikan wajib mempertahankan status posisi `parkir`. Unit TIDAK BOLEH berubah menjadi `disewa` sebelum serah terima fisik dilakukan.
 - **BR-03 (Pelacakan Unit Termasuk Opsi Kurir D-26 & Opsi 3A):** Setiap unit fisik armada memiliki status posisi:
   1. `parkir`: Pool Malang (Dinoyo) atau Pool Batu (Diponegoro).
   2. `kurir`: **Sedang Dipakai Kurir** disertai nama kurir penanggung jawab operasional.
@@ -59,6 +66,27 @@
   5. Servis CVT Part (Roller, V-Belt, Slider)
   6. Baterai Kering / Aki
   7. Servis Kecelakaan / Insiden
+- **BR-09 (Pemisahan Kolom Tanggal & Jam serta Normalisasi Fleksibel):**
+  - Pada formulir booking, kolom tanggal dan jam dipisahkan secara terpisah (bukan input datetime-local tunggal).
+  - Kolom tanggal menggunakan input tanggal murni (`type="date"`).
+  - Kolom jam menggunakan input teks fleksibel (`type="text"`) dengan fitur auto-normalisasi pada event `onBlur`:
+    - Format jam: `4`, `04`, `4.00`, `4,00`, `04:00` dinormalisasi otomatis ke `04:00`.
+    - Format jam: `16`, `16.00`, `16,00` dinormalisasi otomatis ke `16:00`.
+    - Format jam: `9.30`, `9,30` dinormalisasi otomatis ke `09:30`.
+    - Format tanggal mendukung: `YYYY-MM-DD`, `DD/MM/YYYY`, `DD.MM.YYYY`, `DD-MM-YYYY`, serta teks bulan Indonesia ("12 Maret 2025").
+    - Parser chat WhatsApp membersihkan otomatis prefix metadata ekspor chat seperti `[01/02/25 08.30] Nama: `.
+- **BR-10 (Soft Cancellation & Proteksi Integritas Unit):**
+  - Pembatalan transaksi wajib menggunakan status `ryokou_dibatalkan` agar histori tidak terhapus.
+  - Proteksi status: Transaksi yang sudah `disewa`, `diservis`, atau `selesai` diblokir dari pembatalan sepihak.
+  - Pelepasan unit pelacak saat pembatalan wajib memverifikasi kecocokan ID booking (`t.bookingId === bookingId`).
+- **BR-11 (Keamanan Database, Corrupt DB Backup, & Auto-Snapshot):**
+  - Deteksi kegagalan parsing JSON pada LocalStorage mencadangkan raw data korup ke kunci `ryokourent_db_corrupt_<timestamp>` sebelum reset fallback.
+  - Default database diisolasi dengan `structuredClone(INITIAL_DATABASE)` untuk mencegah mutasi in-memory.
+  - Jalur migrasi database disatukan ke fungsi tunggal `migrateDatabase(rawDb)` untuk `loadDatabase` dan `importDatabaseJSON`.
+  - Impor atau restore JSON otomatis membuat snapshot cadangan `ryokourent_snapshot_<timestamp>` sebelum menimpa data aktif.
+- **BR-12 (Honest WhatsApp Links & Google Sheets Offline Queue):**
+  - Dilarang keras menggunakan nomor ponsel dummy/fiktif (`6281234567890`). Bila nomor penyewa belum terdaftar, tautan yang dihasilkan adalah tautan *share text* murni (`https://api.whatsapp.com/send?text=...`).
+  - Antrean sinkronisasi Google Sheets saat perangkat offline disimpan di LocalStorage (`offlineSheetsQueue`) dan disinkronkan otomatis saat koneksi online pulih (`flushOfflineSheetsQueue`).
 
 ---
 
@@ -74,6 +102,10 @@
 | **M-06: Panel Catatan Servis Rutin** | Catatan 7 kategori servis berkala, riwayat KM, tanggal, biaya, mekanik | `ServiceLogsView.tsx` |
 | **M-07: ZLCE Studio & Recovery Wizard** | Integrasi tab Recovery ZLCE untuk pembuatan snapshot pemulihan langsung dari UI | `RecoveryTab.tsx` / `ZlceTab.tsx` |
 | **M-08: Database & Pengaturan** | LocalStorage persistence, export/import JSON, reset pabrik | `SettingsView.tsx`, `storageService.ts` |
+| **M-09: Visual Analytics 7 Hari (Recharts)** | Kurva tren omset harian dan grafik batang intensitas permintaan unit | `RevenueTrendChart.tsx`, `DashboardView.tsx` |
+| **M-10: Laporan Kinerja Bulanan & Okupansi** | Rekapitulasi multi-bulan, formula okupansi armada, evaluasi laba bersih, memo WA | `MonthlyReportView.tsx` |
+| **M-11: Modal Detail & Quick Share WhatsApp** | Detail 13 poin pemesanan dan generator 3 template WhatsApp instan (Konfirmasi, Pengingat, Terima Kasih) | `BookingDetailModal.tsx` |
+| **M-12: Log Operasional Harian & Insiden** | Catatan serah terima shift, insiden lapangan, info lalu lintas/cuaca, filter prioritas & LocalStorage sync | `DailyOperationalLogSection.tsx`, `DashboardView.tsx` |
 
 *(Catatan: Modul WhatsApp dan Integrasi dipindahkan ke Bagian 10 sesuai instruksi).*
 
@@ -111,7 +143,7 @@ Seluruh spesifikasi integrasi WhatsApp dialihkan ke Bagian 10.
 - **`PhysicalUnit`:** `id`, `kodeUnit`, `motorId`, `nomorPlat`, `tahun`, `warna`, `poolLokasi`, `statusServis`.
 - **`UnitTracking`:** `unitId`, `kodeUnit`, `motorId`, `statusPosisi` (`parkir` | `kurir` | `disewa` | `servis`), `poolParkir`, `namaKurir`, `namaBengkel`, `kontakBengkel`, `estimasiSelesai`, `bookingId`, `noBooking`, `namaPenyewa`, `tenggatKembali`.
 - **`ServiceRecord` (7 Kategori):** `id`, `unitId`, `kodeUnit`, `tanggal`, `kategoriServis` (Oli Mesin, Oli Gardan, Kampas Rem, Ganti Ban, CVT Part, Aki, Kecelakaan), `kmMotor`, `biaya`, `bengkelMekanik`, `keterangan`.
-- **`BookingRecord`:** `id`, `noBooking`, `status` (`ryokou_booking` | `ryokou_approved` | `ryokou_disewa` | `ryokou_diservis` | `ryokou_selesai`), `nama`, `nomorWa`, `motorId`, `unitId`, `kategoriTarif`, `pilihanDurasi` (termasuk `1_bulan`), `jamTanggalMulai`, `jamTanggalSelesai`, `totalHargaEstimasi`, `dendaNominal`.
+- **`BookingRecord`:** `id`, `noBooking`, `status` (`ryokou_booking` | `ryokou_approved` | `ryokou_disewa` | `ryokou_diservis` | `ryokou_selesai` | `ryokou_dibatalkan`), `nama`, `nomorWa`, `motorId`, `unitId`, `kategoriTarif`, `pilihanDurasi` (termasuk `1_bulan`), `jamTanggalMulai`, `jamTanggalSelesai`, `totalHargaEstimasi`, `dendaNominal`.
 
 ### B. Prosedur Pembuatan Snapshot via Wizard Tab Recovery ZLCE Studio
 - Snapshot ZLCE dibuat melalui wizard tab Recovery di ZLCE Studio yang mengagregasikan:
@@ -129,9 +161,12 @@ Seluruh spesifikasi integrasi WhatsApp dialihkan ke Bagian 10.
   - `calculateOvertimePenalty`: Validasi toleransi 60 menit dan step-up denda.
   - `isUnitAvailableForRange`: Validasi jeda waktu buffer 60 menit sebelum dan sesudah.
   - `calculateMonthlyTariff`: Perhitungan tarif sewa 1 bulan.
+  - `calculateDynamicRentalTariff`: Validasi kepatuhan tarif deal awal (sewa 8 hari pada paket 1_hari tetap $8 \times \text{tarif harian}$, tanpa konversi otomatis ke 1 minggu + 1 hari).
+  - `normalizeTimeInput` & `normalizeDateInput`: Validasi normalisasi format jam (`4`, `4.00`, `4,00` $\rightarrow$ `04:00`) dan tanggal multi-format.
 - **Uji State Machine & Kurir:**
   - Validasi penugasan kurir pada unit tracking.
   - Validasi pencatatan servis 7 kategori ke riwayat armada.
+  - Validasi pembatalan transaksi ke `ryokou_dibatalkan` dan proteksi pelepasan unit.
 - **Uji Verifikasi Kompilasi & Build:**
   - `npm run lint` (`tsc --noEmit`) $\rightarrow$ Exit code 0.
   - `npm run build` (`vite build`) $\rightarrow$ Bundle PWA berhasil.
@@ -140,11 +175,18 @@ Seluruh spesifikasi integrasi WhatsApp dialihkan ke Bagian 10.
 
 ## 9. MODIFIKASI TEMPLATE FORM ORDER (PEMESANAN)
 
-Formulir pemesanan / order dimodifikasi untuk alur kerja yang lebih praktis dan cepat:
+Formulir pemesanan / order dimodifikasi untuk alur kerja yang lebih praktis, fleksibel, dan cepat:
+- **Pemisahan Kolom Tanggal dan Jam:**
+  - Kolom **Tanggal** (`type="date"`) dan **Jam** (`type="text"`) dipisahkan untuk jadwal pengambilan maupun pengembalian unit.
+  - Operator atau tamu dapat mengetik jam dengan format bebas; sistem secara otomatis menormalkannya saat selesai mengetik (*on blur*):
+    - `4`, `04`, `4.00`, `4,00`, `04:00` $\rightarrow$ `04:00`
+    - `16`, `16.00`, `16,00` $\rightarrow$ `16:00`
+    - `9.30`, `9,30` $\rightarrow$ `09:30`
+  - Parser chat WhatsApp mengekstrak data dari format chat mentah dan memotong prefix timestamp WhatsApp (`[DD/MM/YY HH:MM] ...: `).
 - **Pilihan Durasi Diperbarui:** Pilihan Harian mencakup:
-  - `1_hari`: 1 Hari (24 Jam)
+  - `1_hari`: 1 Hari (24 Jam) — kalkulasi murni per hari sesuai durasi aktual tanpa konversi sepihak
   - `1_minggu`: 1 Minggu (7 Hari)
-  - `1_bulan`: 1 Bulan (30 Hari) [Baru]
+  - `1_bulan`: 1 Bulan (30 Hari)
 - **Opsi Pengantaran Kurir:** Opsi pilihan penyerahan oleh Kurir Toko dengan field Nama Kurir Pengantar.
 - **Penyederhanaan Identitas:** Cukup Nama Penyewa dan Nomor WhatsApp tanpa meminta atau memblokir NIK KTP.
 - **Kalkulasi Otomatis Jadwal Selesai:** Saat opsi 1 Bulan dipilih, tanggal selesai otomatis dihitung $+30$ hari dari tanggal mulai.
@@ -153,10 +195,16 @@ Formulir pemesanan / order dimodifikasi untuk alur kerja yang lebih praktis dan 
 
 ## 10. PENYESUAIAN PEMAKAIAN WHATSAPP & FITUR TAMBAHAN WHATSAPP
 
-Integrasi WhatsApp diperluas dengan generator template pesan UTF-8:
+Integrasi WhatsApp diperluas dengan generator template pesan UTF-8 yang jujur (*honest links*):
 1. **Konfirmasi Booking Baru:** Format rincian sewa harian/bulanan dengan detail pengambilan.
 2. **Surat Tugas / Notifikasi Kurir:** Pesan otomatis ke kurir pengantar berisi alamat antar/jemput, nama penyewa, dan no HP penyewa.
 3. **Pemberitahuan Tagihan Sewa Bulanan (1 Bulan):** Format invoice sewa bulanan dan tanggal jatuh tempo perpanjangan sewa.
 4. **Pengingat Jatuh Tempo (H-2 Jam):** Pesan pengingat ramah ke penyewa sebelum waktu pengembalian berakhir agar tidak terkena denda keterlambatan.
 5. **Kwitansi Pengembalian & Denda:** Rincian perhitungan denda (bila ada) dan konfirmasi unit telah diterima kembali.
 6. **Notifikasi Unit Selesai Servis:** Pesan konfirmasi ke operator saat unit selesai diservis dari bengkel rekanan.
+7. **Quick Share 3 Template Resmi Tamu:**
+   - *Konfirmasi Booking*: Rincian pemesanan lengkap, jadwal serah terima, rincian biaya, dan kelengkapan 2 helm SNI.
+   - *Pengingat Pengembalian*: Reminder tenggat sewa, titik pengembalian, checklist BBM/STNK/helm, dan opsi perpanjangan sewa.
+   - *Ucapan Terima Kasih*: Apresiasi perjalanan di Malang & Batu, ajakan rating bintang 5 Google Maps, dan voucher diskon repeat order.
+8. **Memo Eksekutif Laporan Bulanan:** Format ringkasan kinerja bulanan dan tingkat okupansi armada untuk pelaporan manajemen.
+9. **Standar Tautan Tanpa Nomor Dummy:** Dilarang keras menyematkan nomor telepon contoh/dummy (`6281234567890`). Bila nomor telepon pelanggan tidak ada, sistem menghasilkan link share teks bersih (`https://api.whatsapp.com/send?text=...`).

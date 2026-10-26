@@ -133,47 +133,53 @@ export function formatBookingToSheetsRow(booking: BookingRecord): GoogleSheetsRo
 }
 
 /**
+ * Sanitasi sel CSV dengan pencegahan Formula Injection (=, +, -, @) (F-16)
+ */
+export function csvCell(val: unknown): string {
+  if (val === null || val === undefined) return '""';
+  let str = String(val);
+  // Netralkan formula injection pada spreadsheet
+  if (/^[=+\-@]/.test(str)) {
+    str = `'${str}`;
+  }
+  const escaped = str.replace(/"/g, '""');
+  return `"${escaped}"`;
+}
+
+/**
  * Ekspor seluruh data booking ke format CSV yang kompatibel 100% dengan Google Sheets & Excel.
  */
 export function generateBookingsCSV(bookings: BookingRecord[]): string {
-  const escapeCell = (val: unknown): string => {
-    let s = val == null ? '' : String(val);
-    if (/^[=+\-@\t\r]/.test(s)) {
-      s = "'" + s; // Cegah CSV formula injection
-    }
-    return `"${s.replace(/"/g, '""')}"`;
-  };
-
-  const headerRow = SHEETS_HEADER_COLUMNS.map(escapeCell).join(',');
+  const headerRow = SHEETS_HEADER_COLUMNS.map(csvCell).join(',');
   const dataRows = bookings.map(b => {
     const row = formatBookingToSheetsRow(b);
     return [
-      escapeCell(row.noBooking),
-      escapeCell(row.waktuPemesanan),
-      escapeCell(row.statusSewa),
-      escapeCell(row.namaPenyewa),
-      escapeCell(row.nomorWa),
-      escapeCell(row.noDarurat),
-      escapeCell(row.alamatKtp),
-      escapeCell(row.jenisIdPendukung),
-      escapeCell(row.alamatSaatIni),
-      escapeCell(row.idSosmed),
-      escapeCell(row.modelMotor),
-      escapeCell(row.kodeUnitFisik),
-      escapeCell(row.jumlahHelm),
-      escapeCell(row.durasiSewa),
-      escapeCell(row.jadwalMulai),
-      escapeCell(row.jadwalSelesai),
-      escapeCell(row.lokasiAntar),
-      escapeCell(row.lokasiJemput),
-      escapeCell(row.kurirPengantar),
-      escapeCell(row.totalEstimasiBiaya),
-      escapeCell(row.dendaKeterlambatan),
-      escapeCell(row.catatanKhusus),
-      escapeCell(row.statusReviewAdmin),
-      escapeCell(row.opsiTindakLanjut),
-      escapeCell(row.aksiTerakhirDisetujui),
-      escapeCell(row.timestampSync),
+      csvCell(row.noBooking),
+      csvCell(row.waktuPemesanan),
+      csvCell(row.statusSewa),
+      csvCell(row.namaPenyewa),
+      csvCell(row.nomorWa),
+      csvCell(row.noDarurat),
+      csvCell(row.alamatKtp),
+      csvCell(row.jenisIdPendukung),
+      csvCell(row.alamatSaatIni),
+      csvCell(row.idSosmed),
+      csvCell(row.modelMotor),
+      csvCell(row.kodeUnitFisik),
+      csvCell(row.jumlahHelm),
+      csvCell(row.durasiSewa),
+      csvCell(row.jadwalMulai),
+      csvCell(row.jadwalSelesai),
+      csvCell(row.lokasiAntar),
+      csvCell(row.lokasiJemput),
+      csvCell(row.kurirPengantar),
+      csvCell(row.totalEstimasiBiaya),
+      csvCell(row.dendaKeterlambatan),
+      csvCell(row.catatanKhusus),
+      csvCell(row.statusReviewAdmin),
+      csvCell(row.opsiTindakLanjut),
+      csvCell(row.aksiTerakhirDisetujui),
+      csvCell(row.timestampSync),
     ].join(',');
   });
 
@@ -198,47 +204,16 @@ export function downloadBookingsCSV(bookings: BookingRecord[], filenamePrefix = 
 }
 
 /**
- * Simpan payload ke antrean lokal bila sedang offline dengan deduplikasi noBooking
+ * Simpan payload ke antrean lokal bila sedang offline
  */
 export function enqueueOfflineSheetsSync(row: GoogleSheetsRowData): void {
   try {
     const existing = localStorage.getItem(OFFLINE_QUEUE_KEY);
     const queue: GoogleSheetsRowData[] = existing ? JSON.parse(existing) : [];
-    const next = queue.filter(r => r.noBooking !== row.noBooking).concat(row);
-    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(next.slice(-100)));
+    queue.push(row);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue.slice(-50)));
   } catch (err) {
     console.warn('Gagal menyimpan ke antrean offline Google Sheets:', err);
-  }
-}
-
-/**
- * Kirim ulang semua antrean offline ke Google Sheets saat online kembali
- */
-export async function flushOfflineSheetsQueue(webhookUrl: string): Promise<{ sent: number; remaining: number }> {
-  try {
-    const existing = localStorage.getItem(OFFLINE_QUEUE_KEY);
-    if (!existing) return { sent: 0, remaining: 0 };
-    const queue: GoogleSheetsRowData[] = JSON.parse(existing);
-    if (!Array.isArray(queue) || queue.length === 0) return { sent: 0, remaining: 0 };
-
-    const remaining: GoogleSheetsRowData[] = [];
-    let sentCount = 0;
-    for (const row of queue) {
-      try {
-        await fetch(webhookUrl.trim(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'UPSERT_BOOKING', data: row }),
-        });
-        sentCount++;
-      } catch {
-        remaining.push(row);
-      }
-    }
-    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
-    return { sent: sentCount, remaining: remaining.length };
-  } catch {
-    return { sent: 0, remaining: 0 };
   }
 }
 
@@ -275,7 +250,6 @@ export async function syncBookingToGoogleSheets(
   }
 
   try {
-    // Gunakan Content-Type text/plain agar menghindari penolakan CORS preflight di Google Apps Script
     const res = await fetch(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -302,7 +276,7 @@ export async function syncBookingToGoogleSheets(
     const errText = err instanceof Error ? err.message : 'Koneksi gagal';
     return {
       success: false,
-      message: `Tersimpan di antrean offline (${errText}).`,
+      message: `Koneksi ke Google Sheets gagal (${errText}). Data disimpan ke antrean offline.`,
     };
   }
 }
@@ -328,7 +302,7 @@ export async function bulkSyncBookingsToGoogleSheets(
   try {
     const res = await fetch(webhookUrl.trim(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'BULK_UPSERT',
         count: rows.length,
@@ -356,5 +330,50 @@ export async function bulkSyncBookingsToGoogleSheets(
       count: 0,
       message: `Gagal menghubungi Google Sheets API: ${errText}`,
     };
+  }
+}
+
+/**
+ * Mengirim antrean offline ke Webhook Google Apps Script
+ */
+export async function flushOfflineSheetsQueue(
+  webhookUrl: string
+): Promise<{ success: boolean; flushedCount: number; message: string }> {
+  if (!webhookUrl || !webhookUrl.trim().startsWith('http')) {
+    return { success: false, flushedCount: 0, message: 'URL Webhook Google Sheets belum dikonfigurasi.' };
+  }
+  const existing = localStorage.getItem(OFFLINE_QUEUE_KEY);
+  if (!existing) {
+    return { success: true, flushedCount: 0, message: 'Tidak ada antrean offline.' };
+  }
+  let queue: GoogleSheetsRowData[] = [];
+  try {
+    queue = JSON.parse(existing);
+  } catch {
+    localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    return { success: true, flushedCount: 0, message: 'Antrean korup dibersihkan.' };
+  }
+  if (!Array.isArray(queue) || queue.length === 0) {
+    return { success: true, flushedCount: 0, message: 'Antrean offline kosong.' };
+  }
+
+  try {
+    const res = await fetch(webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'BULK_UPSERT',
+        count: queue.length,
+        rows: queue,
+      }),
+    });
+    if (!res.ok) {
+      return { success: false, flushedCount: 0, message: `Server Google Apps Script merespon ${res.status}.` };
+    }
+    localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    return { success: true, flushedCount: queue.length, message: `Berhasil mengunggah ${queue.length} antrean data offline ke Google Sheets!` };
+  } catch (err) {
+    const errText = err instanceof Error ? err.message : 'Koneksi gagal';
+    return { success: false, flushedCount: 0, message: `Gagal mengirim antrean offline: ${errText}` };
   }
 }

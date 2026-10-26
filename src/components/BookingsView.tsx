@@ -13,8 +13,6 @@ import {
   generateApprovalNoticeToCustomerWhatsAppUrl,
   generateHandoverNoticeToCustomerWhatsAppUrl,
   generateGradedDueReminderWhatsAppUrl,
-  generateCustomerBookingSummaryWhatsAppUrl,
-  generateReturnReceiptWhatsAppUrl,
 } from '../services/whatsappService';
 import { computeBookingCountdown } from '../utils/countdownHelper';
 import {
@@ -31,8 +29,11 @@ import {
   AlertTriangle,
   UserCheck,
   Receipt,
-  XCircle,
+  Share2,
+  Info,
+  Wrench,
 } from 'lucide-react';
+import { QuickShareTab } from './BookingDetailModal';
 
 interface BookingsViewProps {
   db: RyokoDatabase;
@@ -43,6 +44,9 @@ interface BookingsViewProps {
   onOpenFinishModal: (booking: BookingRecord) => void;
   onCancelBooking: (bookingId: number) => void;
   onOpenReceiptModal?: (booking: BookingRecord) => void;
+  onOpenDetailModal?: (booking: BookingRecord, initialTab?: 'detail' | 'quick_share', initialShareTab?: QuickShareTab) => void;
+  onSendToService?: (bookingId: number, reason?: string) => void;
+  onReturnFromService?: (bookingId: number, target: 'ryokou_disewa' | 'ryokou_selesai') => void;
 }
 
 export const BookingsView: React.FC<BookingsViewProps> = ({
@@ -54,6 +58,9 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
   onOpenFinishModal,
   onCancelBooking,
   onOpenReceiptModal,
+  onOpenDetailModal,
+  onSendToService,
+  onReturnFromService,
 }) => {
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -122,9 +129,9 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
       badgeClass: 'bg-slate-800/90 border-slate-700 text-slate-300',
     },
     ryokou_dibatalkan: {
-      label: '6. Dibatalkan',
-      stepNumber: '06',
-      badgeClass: 'bg-rose-950/70 border-rose-800/60 text-rose-300 line-through',
+      label: 'Dibatalkan',
+      stepNumber: 'X',
+      badgeClass: 'bg-rose-950/80 border-rose-800/80 text-rose-300',
     },
   };
 
@@ -146,7 +153,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
 
         <button
           onClick={onOpenNewBooking}
-          className="self-start sm:self-auto min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-950 flex items-center gap-1.5 transition active:scale-95"
+          className="self-start sm:self-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-950 flex items-center gap-1.5 transition active:scale-95"
         >
           <Plus className="w-4 h-4" />
           <span>Tambah Booking Baru</span>
@@ -159,7 +166,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
         <div className="flex items-center gap-1 overflow-x-auto pb-1 text-xs scrollbar-none">
           <button
             onClick={() => setActiveStatusFilter('all')}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
+            className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
               activeStatusFilter === 'all'
                 ? 'bg-cyan-600 text-white font-bold shadow-sm'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
@@ -169,7 +176,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
           </button>
           <button
             onClick={() => setActiveStatusFilter('ryokou_booking')}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
+            className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
               activeStatusFilter === 'ryokou_booking'
                 ? 'bg-amber-600 text-slate-950 font-bold shadow-sm'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
@@ -179,7 +186,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
           </button>
           <button
             onClick={() => setActiveStatusFilter('ryokou_approved')}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
+            className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
               activeStatusFilter === 'ryokou_approved'
                 ? 'bg-cyan-600 text-white font-bold shadow-sm'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
@@ -189,7 +196,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
           </button>
           <button
             onClick={() => setActiveStatusFilter('ryokou_disewa')}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
+            className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
               activeStatusFilter === 'ryokou_disewa'
                 ? 'bg-blue-600 text-white font-bold shadow-sm'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
@@ -199,7 +206,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
           </button>
           <button
             onClick={() => setActiveStatusFilter('ryokou_selesai')}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
+            className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
               activeStatusFilter === 'ryokou_selesai'
                 ? 'bg-slate-700 text-white font-bold shadow-sm'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
@@ -209,13 +216,13 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
           </button>
           <button
             onClick={() => setActiveStatusFilter('ryokou_dibatalkan')}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
+            className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition ${
               activeStatusFilter === 'ryokou_dibatalkan'
-                ? 'bg-rose-700 text-white font-bold shadow-sm'
+                ? 'bg-rose-900 text-white font-bold shadow-sm'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            5. Dibatalkan ({db.bookings.filter(b => b.status === 'ryokou_dibatalkan').length})
+            Dibatalkan ({db.bookings.filter(b => b.status === 'ryokou_dibatalkan').length})
           </button>
         </div>
 
@@ -254,9 +261,13 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                 {/* Top Row: Booking Number & Status Badge */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-black text-cyan-400 font-mono tracking-wide">
-                      {b.noBooking}
-                    </span>
+                    <button
+                      onClick={() => onOpenDetailModal && onOpenDetailModal(b, 'detail')}
+                      className="text-sm font-black text-cyan-400 font-mono tracking-wide hover:underline cursor-pointer flex items-center gap-1"
+                      title="Klik untuk melihat Detail Booking & Quick Share"
+                    >
+                      <span>{b.noBooking}</span>
+                    </button>
                     <span
                       className={`text-[11px] font-bold px-2.5 py-0.5 rounded-lg border ${meta.badgeClass}`}
                     >
@@ -275,7 +286,18 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                     )}
                   </div>
 
-                  <span className="text-xs text-slate-400 font-mono">{b.createdAt}</span>
+                  <div className="flex items-center gap-2">
+                    {onOpenDetailModal && (
+                      <button
+                        onClick={() => onOpenDetailModal(b, 'detail')}
+                        className="text-[11px] font-semibold text-slate-400 hover:text-cyan-300 flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-slate-800 transition"
+                      >
+                        <Info className="w-3 h-3 text-cyan-400" />
+                        <span>Detail</span>
+                      </button>
+                    )}
+                    <span className="text-xs text-slate-400 font-mono">{b.createdAt}</span>
+                  </div>
                 </div>
 
                 {/* Details Grid */}
@@ -410,14 +432,14 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                 {/* State Machine Action Strip */}
                 <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
                   {/* Left: WhatsApp Dispatch */}
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
                         const waUrl = generateBookingConfirmationWhatsAppUrl(b, db.settings.adminWhatsapp);
-                        if (waUrl) window.open(waUrl, '_blank');
+                        window.open(waUrl, '_blank');
                       }}
-                      className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-700/60 text-emerald-300 text-xs font-semibold flex items-center gap-1 transition"
-                      title="Buka pesan WhatsApp resmi transaksi ini untuk admin"
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-700/60 text-emerald-300 text-xs font-semibold flex items-center gap-1 transition"
+                      title="Buka pesan WhatsApp resmi transaksi ini"
                     >
                       <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
                       <span>WA Admin</span>
@@ -427,9 +449,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                       <button
                         onClick={() => {
                           let waUrl = '';
-                          if (b.status === 'ryokou_booking') {
-                            waUrl = generateCustomerBookingSummaryWhatsAppUrl(b);
-                          } else if (b.status === 'ryokou_approved') {
+                          if (b.status === 'ryokou_approved') {
                             waUrl = generateApprovalNoticeToCustomerWhatsAppUrl(b);
                           } else if (b.status === 'ryokou_disewa') {
                             const info = computeBookingCountdown(b, motor, currentEpoch);
@@ -441,19 +461,12 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                                 }
                               : undefined;
                             waUrl = generateGradedDueReminderWhatsAppUrl(b, info.urgency, info.humanText, penaltyInfo);
-                          } else if (b.status === 'ryokou_selesai') {
-                            waUrl = generateReturnReceiptWhatsAppUrl(b);
                           } else {
-                            waUrl = generateCustomerBookingSummaryWhatsAppUrl(b);
-                          }
-
-                          if (!waUrl) {
-                            alert('Nomor WhatsApp penyewa tidak valid atau tidak memiliki format yang benar.');
-                            return;
+                            waUrl = generateBookingConfirmationWhatsAppUrl(b, b.nomorWa);
                           }
                           window.open(waUrl, '_blank');
                         }}
-                        className={`min-h-[44px] px-2.5 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 transition ${
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition ${
                           b.status === 'ryokou_disewa'
                             ? 'bg-amber-950/80 hover:bg-amber-900/80 border border-amber-700/60 text-amber-300 font-semibold'
                             : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
@@ -468,23 +481,42 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                     {onOpenReceiptModal && (
                       <button
                         onClick={() => onOpenReceiptModal(b)}
-                        className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-700/60 text-cyan-300 text-xs font-semibold flex items-center gap-1 transition"
+                        className="px-2.5 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-700/60 text-cyan-300 text-xs font-semibold flex items-center gap-1 transition"
                         title="Buka Kwitansi Digital, Simpan PDF & Salin Ringkasan Nota Cepat"
                       >
                         <Receipt className="w-3.5 h-3.5 text-cyan-400" />
                         <span>Kwitansi</span>
                       </button>
                     )}
+
+                    {onOpenDetailModal && (
+                      <button
+                        onClick={() => {
+                          const defaultShareTab: QuickShareTab =
+                            b.status === 'ryokou_selesai'
+                              ? 'thankyou'
+                              : b.status === 'ryokou_disewa'
+                              ? 'reminder'
+                              : 'confirmation';
+                          onOpenDetailModal(b, 'quick_share', defaultShareTab);
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-600/70 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-xs"
+                        title="Quick Share WhatsApp (Konfirmasi, Pengingat, Terima Kasih)"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Quick Share</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Right: State Transition Buttons */}
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
                     {/* STATUS 1: BOOKING BARU -> Approve & Kunci Unit */}
                     {b.status === 'ryokou_booking' && (
                       <>
                         <button
                           onClick={() => onCancelBooking(b.id)}
-                          className="min-h-[44px] px-3 py-1.5 rounded-xl text-xs font-medium text-red-400 hover:bg-red-950/50 border border-red-900/30 transition flex items-center gap-1"
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:bg-red-950/50 transition flex items-center gap-1"
                           title="Tolak / batalkan pesanan ini (D-20)"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -492,7 +524,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                         </button>
                         <button
                           onClick={() => onOpenApproveModal(b)}
-                          className="min-h-[44px] px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-cyan-950 transition active:scale-95"
+                          className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-cyan-950 transition active:scale-95"
                         >
                           <Key className="w-3.5 h-3.5" />
                           <span>Approve & Kunci Unit</span>
@@ -500,24 +532,20 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                       </>
                     )}
 
-                    {/* STATUS 2: APPROVED -> Serah Terima Unit ATAU Batalkan */}
+                    {/* STATUS 2: APPROVED -> Serah Terima Unit atau Batal */}
                     {b.status === 'ryokou_approved' && (
                       <>
                         <button
-                          onClick={() => {
-                            if (window.confirm(`Batalkan pesanan ${b.noBooking} (${b.nama}) dan lepaskan unit motor ${b.snapshotKodeUnit || ''}?`)) {
-                              onCancelBooking(b.id);
-                            }
-                          }}
-                          className="min-h-[44px] px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/50 border border-rose-900/40 transition flex items-center gap-1 active:scale-95"
-                          title="Batalkan pesanan dan kembalikan unit fisik ke parkir"
+                          onClick={() => onCancelBooking(b.id)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-rose-400 hover:bg-rose-950/50 transition flex items-center gap-1"
+                          title="Batalkan pesanan & lepas kunci unit"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>Batalkan</span>
                         </button>
                         <button
                           onClick={() => onOpenHandoverModal(b)}
-                          className="min-h-[44px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950 transition active:scale-95"
+                          className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950 transition active:scale-95"
                         >
                           <CheckCircle className="w-3.5 h-3.5" />
                           <span>Serah Terima (Mulai Sewa)</span>
@@ -525,12 +553,25 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                       </>
                     )}
 
-                    {/* STATUS 3: SEDANG DISEWA -> Tukar Unit (D-19) ATAU Selesai (D-27) */}
+                    {/* STATUS 3: SEDANG DISEWA -> Tukar Unit (D-19), Masuk Servis (F-08), ATAU Selesai (D-27) */}
                     {b.status === 'ryokou_disewa' && (
                       <>
                         <button
+                          onClick={() => {
+                            const reason = prompt('Alasan unit dialihkan ke servis (mis. ban bocor/kelistrikan):', 'Perawatan mekanis darurat');
+                            if (reason !== null && onSendToService) {
+                              onSendToService(b.id, reason);
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-orange-950/80 hover:bg-orange-900 border border-orange-700/60 text-orange-300 text-xs font-semibold flex items-center gap-1 transition"
+                          title="Alihkan unit ke status Servis (F-08)"
+                        >
+                          <Wrench className="w-3.5 h-3.5 text-orange-400" />
+                          <span>Diservis</span>
+                        </button>
+                        <button
                           onClick={() => onOpenExchangeModal(b)}
-                          className="min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition"
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition"
                           title="Tukar unit motor untuk sewa berjalan atau perawatan di jalan (D-19)"
                         >
                           <Repeat className="w-3.5 h-3.5" />
@@ -538,7 +579,7 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                         </button>
                         <button
                           onClick={() => onOpenFinishModal(b)}
-                          className="min-h-[44px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950 transition active:scale-95"
+                          className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950 transition active:scale-95"
                         >
                           <CheckCircle className="w-3.5 h-3.5" />
                           <span>Selesai & Denda (D-27)</span>
@@ -546,19 +587,33 @@ export const BookingsView: React.FC<BookingsViewProps> = ({
                       </>
                     )}
 
-                    {/* STATUS 4: SELESAI */}
-                    {b.status === 'ryokou_selesai' && (
-                      <span className="text-xs text-slate-400 font-semibold flex items-center gap-1 py-2">
-                        <CheckCircle className="w-4 h-4 text-emerald-400" />
-                        <span>Transaksi Selesai</span>
-                      </span>
+                    {/* STATUS 4: DISERVIS (F-08) */}
+                    {b.status === 'ryokou_diservis' && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => onReturnFromService && onReturnFromService(b.id, 'ryokou_disewa')}
+                          className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1 shadow-md transition"
+                          title="Servis selesai, lanjutkan sewa penyewa"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Lanjut Sewa</span>
+                        </button>
+                        <button
+                          onClick={() => onOpenFinishModal(b)}
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-md transition"
+                          title="Selesaikan kontrak sewa"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Selesaikan Sewa</span>
+                        </button>
+                      </div>
                     )}
 
-                    {/* STATUS 5: DIBATALKAN */}
-                    {b.status === 'ryokou_dibatalkan' && (
-                      <span className="text-xs text-rose-400 font-semibold flex items-center gap-1 py-2">
-                        <XCircle className="w-4 h-4 text-rose-400" />
-                        <span>Pesanan Dibatalkan</span>
+                    {/* STATUS 5: SELESAI */}
+                    {b.status === 'ryokou_selesai' && (
+                      <span className="text-xs text-slate-400 font-semibold flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        <span>Transaksi Selesai</span>
                       </span>
                     )}
                   </div>

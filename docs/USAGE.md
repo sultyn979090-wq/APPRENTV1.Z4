@@ -118,3 +118,39 @@ Timestamp: 2026-10-22T06:00:00Z (atau "jam: ?")
 ```
 
 Aturan jam (`X1`): Jika lingkungan AI tidak memiliki akses jam sistem tepercaya, AI wajib menulis `"jam: ?"` dan dilarang mengarang/mengekstrapolasi waktu secara halusinasi.
+
+---
+
+## 6. Standar Operasional & Ketentuan Baru Aplikasi RyokoRent
+
+Dokumentasi ketentuan operasional baku yang berlaku bagi operator, admin, dan pengembang:
+
+### 1. Standar Input Tanggal & Jam Pemesanan
+- Input Tanggal dan Jam **wajib dipisah** pada setiap form pemesanan:
+  - **Tanggal**: Format `YYYY-MM-DD` (input pemilih tanggal kalender).
+  - **Jam**: Input teks bebas yang otomatis dinormalkan ke format `HH:mm`:
+    - Angka tunggal atau desimal seperti `4`, `04`, `4.00`, `4,00` dianggap sama dan otomatis diubah menjadi `04:00`.
+    - Format 24 jam seperti `16`, `16.00`, `16,00` otomatis diubah menjadi `16:00`.
+    - Jam dengan menit seperti `9.30`, `9,30` otomatis diubah menjadi `09:30`.
+- Parser pesan WhatsApp secara otomatis membuang prefix timestamp export WhatsApp (`[DD/MM/YY HH:MM] ...: `) sebelum mengekstrak informasi penyewa.
+
+### 2. Standar Perhitungan Tarif (Kepatuhan Deal Awal - F-03 P0)
+- Perhitungan tarif sewa **wajib berdasar kesepakatan/deal awal** yang dipilih pelanggan.
+- Sistem dilarang merubah formula perhitungan secara sepihak.
+- Contoh: Jika pelanggan memilih sewa **Harian**, maka durasi sewa selama 8 hari dihitung murni $8 \times \text{tarif harian}$ (tidak boleh otomatis diubah menjadi 1 minggu + 1 hari). Paket mingguan atau bulanan hanya dihitung bila dari awal dipilih paket tersebut.
+- Tarif ShortRent jam (3, 6, 9, 12 Jam) memiliki fallback default untuk mencegah error kalkulasi `NaN`.
+
+### 3. Standar State Machine & Soft Cancellation
+- State machine memiliki 6 status resmi: `ryokou_booking`, `ryokou_approved`, `ryokou_disewa`, `ryokou_diservis`, `ryokou_selesai`, dan `ryokou_dibatalkan`.
+- Unit garasi yang dialokasikan saat booking baru berstatus **`parkir`**, bukan `disewa`. Unit hanya beralih ke `disewa` setelah proses serah terima fisik motor.
+- Pembatalan transaksi menggunakan **soft-cancellation** (`ryokou_dibatalkan`) agar jejak transaksi tetap tersimpan dalam audit log.
+- Booking dengan status `disewa`, `diservis`, atau `selesai` tidak dapat dibatalkan sembarangan.
+
+### 4. Standar Ketahanan Database & Pemulihan
+- Jika data LocalStorage korup, sistem secara otomatis mencadangkan data mentah ke kunci `ryokourent_db_corrupt_<timestamp>` sebelum melakukan reset aman.
+- Setiap kali melakukan impor atau restore database JSON, sistem secara otomatis membuat snapshot `ryokourent_snapshot_<timestamp>` sebelum data ditimpa.
+- Pemuatan database dan impor database menggunakan fungsi migrasi tunggal `migrateDatabase`.
+
+### 5. Standar Komunikasi WhatsApp
+- Tautan WhatsApp menggunakan format resmi UTF-8 dan dilarang menggunakan nomor tiruan/dummy (`6281234567890`).
+- Jika nomor pelanggan belum tercatat, sistem menghasilkan tautan *share text* murni tanpa parameter nomor tujuan yang menyesatkan.

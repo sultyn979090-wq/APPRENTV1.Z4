@@ -12,31 +12,34 @@ Tolong lakukan tinjauan kode (Comprehensive Code & Architecture Review) secara m
 
 ### FOKUS UTAMA TINJAUAN:
 
-1. **Kepatuhan Form Template Booking 13 Field:**
+1. **Kepatuhan Form Template Booking 13 Field & Pemisahan Kolom:**
    - Periksa konsistensi 13 field standar: (1) Nama, (2) Alamat KTP, (3) ID Pendukung (SIM C, KTM, NPWP, Paspor, BPJS), (4) Alamat Saat Ini (rumah/kos/hotel di Malang/Batu), (5) ID Sosmed (IG/TikTok/FB), (6) Nomor Telepon, (7) Nomor Telepon Darurat, (8) Jadwal Mulai, (9) Jadwal Selesai, (10) Lokasi Pengantaran, (11) Lokasi Penjemputan, (12) Model Unit Motor, (13) Jumlah Helm SNI (1 atau 2).
-   - Apakah parser WhatsApp chat (`whatsappChatParser.ts`) dapat mengekstrak teks chat acak pelanggan dengan toleransi format tinggi?
+   - Periksa pemisahan kolom input Tanggal (`type="date"`) dan Jam (`type="text"`) mandiri dengan normalizer fleksibel (`normalizeTimeInput` untuk `4`, `4.00`, `4,00`, `04:00` -> `04:00`).
+   - Apakah parser WhatsApp chat (`whatsappChatParser.ts`) dapat mengekstrak teks chat acak pelanggan serta membersihkan metadata timestamp WhatsApp export?
    - Apakah seluruh 13 field ini terpetakan di form modal, nota kwitansi paperless, dan pesan WhatsApp?
 
 2. **Kekokohan State Machine & Logika Bisnis:**
-   - Evaluasi transisi 5 status: `ryokou_booking` (Pemesanan Baru) -> `ryokou_approved` (Unit Dikunci) -> `ryokou_disewa` (Sedang Jalan) -> `ryokou_diservis` (Perbaikan Bengkel) -> `ryokou_selesai` (Unit Kembali).
+   - Evaluasi transisi 6 status: `ryokou_booking` (Pemesanan Baru) -> `ryokou_approved` (Unit Dikunci) -> `ryokou_disewa` (Sedang Jalan) -> `ryokou_diservis` (Perbaikan Bengkel) -> `ryokou_selesai` (Unit Kembali) dan `ryokou_dibatalkan` (Soft-Cancel).
+   - Pastikan alokasi unit garasi saat booking baru mempertahankan posisi `parkir` (tidak langsung berubah `disewa` sebelum serah terima).
+   - Validasi kepatuhan aturan deal awal tarif (F-03 P0): Sewa 8 hari pada paket harian tetap $8 \times \text{tarif harian}$, tidak diubah sepihak menjadi 1 minggu + 1 hari.
    - Validasi algoritma bentrok jadwal dengan jeda turnaround buffer 60 menit (`isUnitAvailableForRange`). Apakah ada potensi race condition atau celah double-booking?
-   - Validasi mekanisme proteksi anti-hapus pada booking berstatus aktif (D-20).
+   - Validasi mekanisme proteksi anti-hapus pada booking berstatus aktif (D-20) dan proteksi pembatalan.
    - Evaluasi rumus denda keterlambatan (step-up tier untuk ShortRent jam dan denda per jam untuk sewa harian/bulanan dengan toleransi 60 menit).
 
 3. **Manajemen Armada, Kurir & 7 Kategori Servis:**
    - Status posisi armada: `parkir` (Pool Malang Dinoyo / Pool Batu Sisir), `kurir` (disertai nama kurir penanggung jawab), `disewa`, dan `servis`.
    - Modul pencatatan 7 kategori servis rutin: Oli Mesin, Oli Gardan, Kampas Rem, Ganti Ban, CVT Part, Aki, Kecelakaan.
 
-4. **Keamanan, Privasi & Kebijakan Anti-NIK:**
+4. **Keamanan, Ketahanan Database & Kebijakan Anti-NIK:**
    - Pastikan tidak ada data NIK KTP yang terekspos secara publik atau divalidasi dengan cara yang memblokir pengguna secara tidak wajar.
-   - Evaluasi persistensi data di LocalStorage (`ryokourent_db_v1`), penanganan limit 5MB, dan mekanisme fallback JSON backup/restore.
+   - Evaluasi ketahanan LocalStorage: pencadangan otomatis payload korup ke `ryokourent_db_corrupt_<timestamp>`, auto-snapshot sebelum restore/impor, dan `structuredClone` untuk isolasi mutasi data.
 
 5. **Kesiapan PWA Android & Mobile Responsiveness:**
-   - Tinjau tata letak komponen antarmuka untuk viewport layar smartphone Android (lebar 360px - 412px), akses navigasi jempol satu tangan, dan mode PWA standalone.
+   - Tinjau tata letak komponen antarmuka untuk viewport layar smartphone Android (lebar 360px - 412px), mode update PWA `prompt`, akses navigasi jempol satu tangan, dan mode PWA standalone.
 
 6. **Integrasi Eksternal (WhatsApp, Google Sheets, Telegram Bot):**
-   - Tinjau ketepatan URL encoding untuk `api.whatsapp.com`.
-   - Tinjau kelayakan skema ekspor data Google Sheets (kolom review, opsi operasional, dan aksi).
+   - Tinjau tautan WhatsApp jujur (*honest links* tanpa nomor dummy `6281234567890`).
+   - Tinjau antrean sinkronisasi offline Google Sheets (`flushOfflineSheetsQueue`).
    - Tinjau kesiapan integrasi bot Telegram untuk alert pengembalian real-time dan callback inline keyboard.
 
 ---

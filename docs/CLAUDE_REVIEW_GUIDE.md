@@ -8,11 +8,11 @@
 ## 1. TUJUAN TINJAUAN KODE (CODE REVIEW)
 
 Tinjauan kode oleh Claude ditujukan untuk mengaudit:
-1. **Kepatuhan Form Template Standar 13-Field:** Memastikan seluruh data penyewa tersimpan utuh dan terformat seragam (Nama, Alamat KTP, ID Pendukung, Alamat Saat Ini, ID Sosmed, No Telp, No Darurat, Jadwal Mulai, Jadwal Selesai, Lokasi Antar, Lokasi Jemput, Model Unit, Jumlah Helm).
-2. **Kekokohan State Machine & Logika Bisnis:** Alur 5 status (`ryokou_booking` → `ryokou_approved` → `ryokou_disewa` → `ryokou_diservis` → `ryokou_selesai`), proteksi penghapusan booking aktif (D-20), buffer jeda 60 menit (BR-04), dan perhitungan denda step-up (D-27).
-3. **Privasi & Keamanan Data (Anti-NIK):** Penegakan kebijakan bahwa NIK tidak boleh terekspos atau diblokir secara tidak semestinya, serta keamanan penyimpanan LocalStorage.
-4. **Kinerja PWA Offline & UI/UX Mobile:** Respon aplikasi pada peramban mobile Android Chrome, instalasi PWA Standalone, dan optimasi interaksi sentuhan.
-5. **Kesiapan Integrasi Eksternal:** Generator pesan WhatsApp UTF-8, sinkronisasi Google Sheets, dan alert jatuh tempo Bot Telegram.
+1. **Kepatuhan Form Template Standar 13-Field & Pemisahan Kolom:** Memastikan seluruh data penyewa tersimpan utuh dan terformat seragam (13 field). Memeriksa pemisahan kolom input Tanggal (`date`) dan Jam (`text`) dengan normalisasi otomatis fleksibel (`normalizeTimeInput` untuk `4`, `4.00`, `4,00`, `04:00` $\rightarrow$ `04:00`).
+2. **Kekokohan State Machine & Logika Bisnis:** Alur 6 status (`ryokou_booking` → `ryokou_approved` → `ryokou_disewa` → `ryokou_diservis` → `ryokou_selesai` dan `ryokou_dibatalkan`), proteksi unit fisik tetap `parkir` saat baru dibuat, proteksi penghapusan booking aktif (D-20), buffer jeda 60 menit (BR-04), kepatuhan aturan tarif deal awal murni (F-03 P0), dan perhitungan denda step-up (D-27).
+3. **Privasi & Keamanan Data (Anti-NIK & LocalStorage):** Penegakan kebijakan anti-NIK, pencadangan otomatis payload korup ke `ryokourent_db_corrupt_<timestamp>`, auto-snapshot sebelum restore data JSON, dan isolasi immutability data dengan `structuredClone`.
+4. **Kinerja PWA Offline & UI/UX Mobile:** Respon aplikasi pada peramban mobile Android Chrome, instalasi PWA Standalone dengan mode prompt update, dan optimasi interaksi sentuhan.
+5. **Kesiapan Integrasi Eksternal:** Generator pesan WhatsApp UTF-8 jujur (*honest links* tanpa nomor dummy fiktif), antrean sinkronisasi offline Google Sheets, dan alert jatuh tempo Bot Telegram.
 
 ---
 

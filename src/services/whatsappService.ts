@@ -7,16 +7,17 @@ import {
 import { formatRupiah } from './bookingEngine';
 
 /**
- * Normalisasi nomor HP ke format internasional WhatsApp (628xxx)
- * Mengembalikan string kosong jika nomor tidak valid (tidak menggunakan dummy fallback)
+/**
+ * Normalisasi nomor HP ke format internasional WhatsApp (628xxx) tanpa fallback nomor palsu
  */
 export function normalizeWhatsAppNumber(phone: string): string {
   if (!phone) return '';
   let clean = phone.replace(/[^0-9]/g, '');
-  if (clean.length < 8) return '';
-  if (clean.startsWith('0')) {
-    clean = '62' + clean.slice(1);
-  } else if (!clean.startsWith('62')) {
+  if (clean.startsWith('08')) {
+    clean = '628' + clean.slice(2);
+  } else if (clean.startsWith('8')) {
+    clean = '628' + clean.slice(1);
+  } else if (!clean.startsWith('62') && clean.length > 5) {
     clean = '62' + clean;
   }
   return clean;
@@ -24,11 +25,14 @@ export function normalizeWhatsAppNumber(phone: string): string {
 
 /**
  * Tautan WhatsApp generik dari nomor dan teks
+ * Jika nomor kosong, buat tautan share WhatsApp tanpa target nomor dummy
  */
 export function generateWhatsAppLink(phone: string, text: string): string {
   const target = normalizeWhatsAppNumber(phone);
-  if (!target) return '';
-  return `https://api.whatsapp.com/send?phone=${encodeURIComponent(target)}&text=${encodeURIComponent(text)}`;
+  if (target) {
+    return `https://api.whatsapp.com/send?phone=${encodeURIComponent(target)}&text=${encodeURIComponent(text)}`;
+  }
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
 }
 
 /**
@@ -58,7 +62,7 @@ export function generateBookingConfirmationWhatsAppUrl(
     `10. *Lokasi Pengantaran:* ${booking.alamatPengantaran || poolLabel}`,
     `11. *Lokasi Penjemputan:* ${booking.alamatPenjemputan || poolLabel}`,
     `12. *Model Unit:* ${booking.snapshotNamaMotor}`,
-    `13. *Jumlah Helm:* ${booking.jumlahHelm || 2} Helm SNI`,
+    `13. *Jumlah Helm:* ${booking.jumlahHelm ?? 1} Helm SNI`,
     '',
     `*Paket / Durasi:* ${booking.labelDurasi}`,
     `*Estimasi Total Sewa:* ${formatRupiah(booking.totalHargaEstimasi)}`,
@@ -91,33 +95,6 @@ export function generateBookingConfirmationWhatsAppUrl(
 }
 
 /**
- * 1.5 Tautan WhatsApp Ringkasan Pemesanan untuk Pelanggan (Format Sopan ke Penyewa)
- */
-export function generateCustomerBookingSummaryWhatsAppUrl(booking: BookingRecord): string {
-  const poolLabel = booking.pool === 'batu' ? 'Pool Batu (Diponegoro)' : 'Pool Malang (Dinoyo)';
-
-  const lines = [
-    `Halo Kak *${booking.nama}*, terima kasih telah memesan sewa motor di *Ryoko Rent Malang & Batu*! 🛵✨`,
-    'Berikut rincian pesanan sewa Anda yang telah kami terima:',
-    '',
-    `*No. Booking:* ${booking.noBooking}`,
-    `*Unit Motor:* ${booking.snapshotNamaMotor}`,
-    booking.snapshotKodeUnit ? `*Unit Fisik Terkunci:* ${booking.snapshotKodeUnit}` : '*Status Unit:* Menunggu Approval Garasi',
-    `*Durasi Sewa:* ${booking.labelDurasi}`,
-    `*Jadwal Mulai:* ${booking.jamTanggalMulai.replace('T', ' ')} WIB`,
-    `*Jadwal Selesai:* ${booking.jamTanggalSelesai.replace('T', ' ')} WIB`,
-    `*Lokasi Antar:* ${booking.alamatPengantaran || poolLabel}`,
-    `*Lokasi Jemput:* ${booking.alamatPenjemputan || poolLabel}`,
-    `*Fasilitas:* ${booking.jumlahHelm || 2} Helm SNI + Jas Hujan + Phone Holder`,
-    `*Estimasi Biaya:* ${formatRupiah(booking.totalHargaEstimasi)}`,
-    '',
-    'Admin kami sedang memproses pesanan Anda. Jika ada pertanyaan atau perubahan jadwal, silakan balas pesan ini. Terima kasih! 🙏',
-  ];
-
-  return generateWhatsAppLink(booking.nomorWa, lines.join('\n'));
-}
-
-/**
  * 2. Tautan WhatsApp Kirim ke Penyewa: Pemberitahuan Unit Siap & Disetujui
  */
 export function generateApprovalNoticeToCustomerWhatsAppUrl(booking: BookingRecord): string {
@@ -140,29 +117,31 @@ export function generateApprovalNoticeToCustomerWhatsAppUrl(booking: BookingReco
   ];
 
   const message = lines.join('\n');
-  return generateWhatsAppLink(booking.nomorWa, message);
+  return generateWhatsAppLink(customerPhone, message);
 }
 
 /**
  * 3. Tautan WhatsApp Kirim ke Penyewa: Berita Acara Serah Terima Unit (Mulai Sewa)
  */
 export function generateHandoverNoticeToCustomerWhatsAppUrl(booking: BookingRecord): string {
+  const customerPhone = normalizeWhatsAppNumber(booking.nomorWa);
+
   const lines = [
-    `*BUKTI SERAH TERIMA UNIT — RYOKO RENT* 🛵`,
+    `*BUKTI SERAH TERIMA UNIT — RYOKOURENT* 🛵`,
     `Halo Kak *${booking.nama}*, unit motor telah resmi diserahterimakan:`,
     '',
     `*No. Booking:* ${booking.noBooking}`,
-    `*Unit Motor:* ${booking.snapshotNamaMotor} (Kode: *${booking.snapshotKodeUnit || '-'}*)`,
+    `*Unit Motor:* ${booking.snapshotNamaMotor} (Kode: *${booking.snapshotKodeUnit}*)`,
     `*Waktu Mulai Sewa:* ${booking.jamTanggalMulai.replace('T', ' ')} WIB`,
     `*Tenggat Waktu Kembali:* ${booking.jamTanggalSelesai.replace('T', ' ')} WIB`,
-    `*Lokasi Penjemputan:* ${booking.alamatPenjemputan || 'Pool Ryoko Rent'}`,
-    `*Kelengkapan Diterima:* ${booking.jumlahHelm || 2} Helm SNI + Jas Hujan + STNK Asli`,
+    `*Lokasi Penjemputan:* ${booking.alamatPenjemputan || 'Pool Ryokourent'}`,
+    `*Kelengkapan Diterima:* ${booking.jumlahHelm ?? 1} Helm SNI + Jas Hujan + STNK Asli`,
     '',
     '⚠️ _Tips: Hubungi kami jika membutuhkan bantuan darurat di jalan. Selamat menikmati perjalanan!_',
   ];
 
   const message = lines.join('\n');
-  return generateWhatsAppLink(booking.nomorWa, message);
+  return generateWhatsAppLink(customerPhone, message);
 }
 
 /**
@@ -170,33 +149,26 @@ export function generateHandoverNoticeToCustomerWhatsAppUrl(booking: BookingReco
  */
 export function generateReturnReceiptWhatsAppUrl(
   booking: BookingRecord,
-  denda?: OvertimePenaltyResult,
-  returnPoolLabel?: string
+  denda: OvertimePenaltyResult,
+  returnPoolLabel: string
 ): string {
-  const penalty = denda || {
-    terlambat: (booking.dendaNominal || 0) > 0,
-    nominalDenda: booking.dendaNominal || 0,
-    dendaFormat: formatRupiah(booking.dendaNominal || 0),
-    menitTelat: 0,
-    keterangan: (booking.dendaNominal || 0) > 0 ? 'Denda keterlambatan pengembalian' : '',
-  };
-  const pool = returnPoolLabel || (booking.pool === 'batu' ? 'Pool Batu (Jl. Diponegoro)' : 'Pool Malang (Dinoyo)');
-  const totalAkhir = booking.totalHargaEstimasi + (penalty.terlambat ? penalty.nominalDenda : 0);
+  const customerPhone = normalizeWhatsAppNumber(booking.nomorWa);
+  const totalAkhir = booking.totalHargaEstimasi + (denda.terlambat ? denda.nominalDenda : 0);
 
   const lines = [
-    `*BUKTI PENGEMBALIAN & SELESAI SEWA — RYOKO RENT* ✅`,
-    `Terima kasih Kak *${booking.nama}* telah mempercayakan perjalanan bersama Ryoko Rent!`,
+    `*BUKTI PENGEMBALIAN & SELESAI SEWA — RYOKOURENT* ✅`,
+    `Terima kasih Kak *${booking.nama}* telah mempercayakan perjalanan bersama Ryokourent!`,
     '',
     `*No. Booking:* ${booking.noBooking}`,
-    `*Unit Motor:* ${booking.snapshotNamaMotor} (${booking.snapshotKodeUnit || '-'})`,
+    `*Unit Motor:* ${booking.snapshotNamaMotor} (${booking.snapshotKodeUnit})`,
     `*Durasi Sewa:* ${booking.labelDurasi}`,
     `*Tarif Sewa Pokok:* ${formatRupiah(booking.totalHargaEstimasi)}`,
-    `*Lokasi Pengembalian:* ${pool}`,
+    `*Lokasi Pengembalian:* ${returnPoolLabel}`,
   ];
 
-  if (penalty.terlambat && penalty.nominalDenda > 0) {
-    lines.push(`*Denda Keterlambatan (D-27):* ${formatRupiah(penalty.nominalDenda)} ${penalty.menitTelat ? `(${penalty.menitTelat} menit telat)` : ''}`);
-    if (penalty.keterangan) lines.push(`*Rincian Denda:* ${penalty.keterangan}`);
+  if (denda.terlambat && denda.nominalDenda > 0) {
+    lines.push(`*Denda Keterlambatan (D-27):* ${formatRupiah(denda.nominalDenda)} (${denda.menitTelat} menit telat)`);
+    lines.push(`*Rincian Denda:* ${denda.keterangan}`);
     lines.push(`*TOTAL PEMBAYARAN AKHIR:* ${formatRupiah(totalAkhir)}`);
   } else {
     lines.push('*Status Keterlambatan:* Tepat Waktu (Tidak Ada Denda)');
@@ -208,7 +180,7 @@ export function generateReturnReceiptWhatsAppUrl(
   lines.push('Sampai jumpa di liburan Anda berikutnya di Malang & Kota Batu! 🙏⭐');
 
   const message = lines.join('\n');
-  return generateWhatsAppLink(booking.nomorWa, message);
+  return generateWhatsAppLink(customerPhone, message);
 }
 
 /**
@@ -236,7 +208,7 @@ export function generateUnitExchangeNoticeWhatsAppUrl(
   ];
 
   const message = lines.join('\n');
-  return `https://api.whatsapp.com/send?phone=${encodeURIComponent(customerPhone)}&text=${encodeURIComponent(message)}`;
+  return generateWhatsAppLink(customerPhone, message);
 }
 
 /**
@@ -262,12 +234,12 @@ export function generateCourierTaskWhatsAppUrl(
     `*Lokasi Penjemputan:* ${booking.alamatPenjemputan}`,
     `*Durasi Sewa:* ${booking.labelDurasi}`,
     '',
-    'Harap cek kelengkapan unit (2 Helm SNI + Jas Hujan + STNK Asli) sebelum diserahterimakan.',
+    `Harap cek kelengkapan unit (${booking.jumlahHelm ?? 1} Helm SNI + Jas Hujan + STNK Asli) sebelum diserahterimakan.`,
     'Semangat dan utamakan keselamatan berkendara! 🛵💨',
   ];
 
   const message = lines.join('\n');
-  return `https://api.whatsapp.com/send?phone=${encodeURIComponent(targetPhone)}&text=${encodeURIComponent(message)}`;
+  return generateWhatsAppLink(targetPhone, message);
 }
 
 /**
@@ -291,7 +263,7 @@ export function generateMonthlyInvoiceWhatsAppUrl(booking: BookingRecord): strin
   ];
 
   const message = lines.join('\n');
-  return `https://api.whatsapp.com/send?phone=${encodeURIComponent(customerPhone)}&text=${encodeURIComponent(message)}`;
+  return generateWhatsAppLink(customerPhone, message);
 }
 
 /**
@@ -314,7 +286,7 @@ export function generateDueReminderWhatsAppUrl(booking: BookingRecord): string {
   ];
 
   const message = lines.join('\n');
-  return `https://api.whatsapp.com/send?phone=${encodeURIComponent(customerPhone)}&text=${encodeURIComponent(message)}`;
+  return generateWhatsAppLink(customerPhone, message);
 }
 
 /**
@@ -364,7 +336,7 @@ export function generateGradedDueReminderWhatsAppUrl(
   ];
 
   const message = lines.join('\n');
-  return `https://api.whatsapp.com/send?phone=${encodeURIComponent(customerPhone)}&text=${encodeURIComponent(message)}`;
+  return generateWhatsAppLink(customerPhone, message);
 }
 
 /**
@@ -389,7 +361,7 @@ export function generateServiceDoneWhatsAppUrl(service: ServiceRecord, adminPhon
   ];
 
   const message = lines.join('\n');
-  return `https://api.whatsapp.com/send?phone=${encodeURIComponent(targetPhone)}&text=${encodeURIComponent(message)}`;
+  return generateWhatsAppLink(targetPhone, message);
 }
 
 /**
@@ -421,6 +393,150 @@ _Kirimkan format yang sudah diisi ke admin Ryoko Rent Malang & Batu_`;
 export function generateEmptyBookingFormWhatsAppUrl(phone: string): string {
   const targetPhone = normalizeWhatsAppNumber(phone);
   const text = generateStandardBookingTemplateText();
-  return `https://api.whatsapp.com/send?phone=${encodeURIComponent(targetPhone)}&text=${encodeURIComponent(text)}`;
+  return generateWhatsAppLink(targetPhone, text);
 }
 
+/* -------------------------------------------------------------------------- */
+/* QUICK SHARE WHATSAPP TEMPLATES (Konfirmasi, Pengingat, Terima Kasih)      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Quick Share 1: Template Konfirmasi Booking Resmi ke Penyewa
+ */
+export function generateQuickShareConfirmationText(
+  booking: BookingRecord,
+  namaRental = 'Ryoko Rent Motor'
+): string {
+  const poolLabel = booking.pool === 'batu' ? 'Pool Batu (Jl. Diponegoro)' : 'Pool Malang (Jl. Dinoyo)';
+  const unitInfo = booking.snapshotKodeUnit ? `*${booking.snapshotKodeUnit}*` : 'Telah dialokasikan di garasi';
+
+  const lines = [
+    `*KONFIRMASI PEMESANAN SEWA MOTOR — ${namaRental.toUpperCase()}* 🛵✨`,
+    '',
+    `Halo Kak *${booking.nama}*,`,
+    `Terima kasih telah melakukan pemesanan sewa motor di *${namaRental} Malang & Batu*. Pemesanan Kakak telah kami konfirmasi dengan rincian sebagai berikut:`,
+    '',
+    '📋 *RINCIAN BOOKING:*',
+    `• *No. Booking:* ${booking.noBooking}`,
+    `• *Model Motor:* ${booking.snapshotNamaMotor}`,
+    `• *Kode Unit Fisik:* ${unitInfo}`,
+    `• *Durasi Sewa:* ${booking.labelDurasi}`,
+    `• *Jadwal Ambil:* ${booking.jamTanggalMulai.replace('T', ' ')} WIB`,
+    `• *Jadwal Kembali:* ${booking.jamTanggalSelesai.replace('T', ' ')} WIB`,
+    `• *Lokasi Serah Terima:* ${booking.alamatPengantaran || poolLabel}`,
+    `• *Lokasi Pengembalian:* ${booking.alamatPenjemputan || poolLabel}`,
+    `• *Fasilitas Termasuk:* ${booking.jumlahHelm ?? 1} Helm SNI + Jas Hujan + Phone Holder`,
+    `• *Estimasi Total Biaya:* *${formatRupiah(booking.totalHargaEstimasi)}*`,
+    '',
+    '⚠️ *PERSYARATAN & KETENTUAN PENGAMBILAN:*',
+    `1. Mohon siapkan e-KTP Asli & ${booking.jenisIdPendukung || 'SIM C'} untuk verifikasi identitas saat serah terima.`,
+    '2. Tim kurir kami akan menghubungi Kakak sekitar 30–60 menit sebelum jadwal pengantaran.',
+    '3. Harap cek kondisi fisik kendaraan dan kelengkapan STNK bersama tim kami.',
+    '',
+    'Jika ada pertanyaan atau perubahan jadwal, silakan langsung balas pesan ini. Selamat berlibur dan menikmati keindahan Malang & Batu! 😊🙏'
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Quick Share 2: Template Pengingat Pengembalian Sewa Motor (Return Reminder)
+ */
+export function generateQuickShareReturnReminderText(
+  booking: BookingRecord,
+  namaRental = 'Ryoko Rent Motor'
+): string {
+  const poolLabel = booking.pool === 'batu' ? 'Pool Batu (Jl. Diponegoro)' : 'Pool Malang (Jl. Dinoyo)';
+  const returnLocation = booking.alamatPenjemputan || poolLabel;
+  const unitDisplay = booking.snapshotKodeUnit ? `${booking.snapshotNamaMotor} (Kode: *${booking.snapshotKodeUnit}*)` : booking.snapshotNamaMotor;
+
+  const lines = [
+    `*PENGINGAT PENGEMBALIAN MOTOR — ${namaRental.toUpperCase()}* ⏰🛵`,
+    '',
+    `Halo Kak *${booking.nama}*,`,
+    'Semoga perjalanan dan aktivitas Kakak selama berada di Malang & Batu berjalan lancar dan menyenangkan!',
+    '',
+    'Kami ingin menginfokan bahwa waktu sewa motor Kakak akan segera berakhir:',
+    '',
+    '📋 *INFORMASI PENGEMBALIAN:*',
+    `• *No. Booking:* ${booking.noBooking}`,
+    `• *Unit Motor:* ${unitDisplay}`,
+    `• *Tenggat Waktu Kembali:* *${booking.jamTanggalSelesai.replace('T', ' ')} WIB*`,
+    `• *Lokasi Pengembalian:* ${returnLocation}`,
+    '',
+    '🔍 *CHECKLIST SEBELUM PENGEMBALIAN:*',
+    '1. Posisi indikator bahan bakar (BBM) mohon disesuaikan seperti saat serah terima.',
+    '2. Pastikan STNK asli dan kunci kontak tidak tertinggal.',
+    `3. Kembalikan perlengkapan sewa: ${booking.jumlahHelm ?? 1} Helm SNI + Jas Hujan.`,
+    '4. Periksa kompartemen bagasi & dashboard agar tidak ada barang pribadi yang tertinggal.',
+    '',
+    '💡 *INGIN MEMPERPANJANG MASA SEWA?*',
+    'Jika Kakak berencana memperpanjang waktu sewa, mohon segera konfirmasi kepada kami sebelum tenggat di atas agar unit dapat diperpanjang tanpa dikenakan denda toleransi keterlambatan (D-27).',
+    '',
+    'Terima kasih banyak atas kerja sama yang baik dan hati-hati di jalan! 🙏✨'
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Quick Share 3: Template Ucapan Terima Kasih & Review Pasca Sewa (Thank You Note)
+ */
+export function generateQuickShareThankYouText(
+  booking: BookingRecord,
+  namaRental = 'Ryoko Rent Motor'
+): string {
+  const lines = [
+    `*TERIMA KASIH TELAH MEMILIH ${namaRental.toUpperCase()}* 🌟🙏`,
+    '',
+    `Halo Kak *${booking.nama}*,`,
+    `Terima kasih banyak telah mempercayakan rental motor selama berlibur / beraktivitas di Malang & Kota Batu kepada *${namaRental}*.`,
+    '',
+    `Transaksi sewa Kakak untuk *${booking.snapshotNamaMotor}* (*${booking.noBooking}*) telah *RESMI SELESAI*. Unit dan seluruh perlengkapan telah kami terima kembali dalam kondisi baik. ✅`,
+    '',
+    'Kami berharap armada kami memberikan kenyamanan, keamanan, dan pengalaman berkendara yang berkesan selama di Malang & Batu! 😊🛵💨',
+    '',
+    '⭐ *BANTU KAMI MENJADI LEBIH BAIK:*',
+    'Kepuasan Kakak adalah prioritas kami. Jika Kakak berkenan, kami sangat berterima kasih apabila Kakak dapat meluangkan 1 menit untuk memberikan rating bintang 5 dan ulasan pengalaman sewa di Google Maps / Instagram kami.',
+    '',
+    '🎁 *PROMO KHUSUS KUNJUNGAN BERIKUTNYA:*',
+    'Simpan nomor WhatsApp ini ya Kak! Dapatkan potongan harga spesial (Diskon Repeat Order) untuk pemesanan sewa motor Kakak di kunjungan berikutnya.',
+    '',
+    `Sampai jumpa kembali di liburan berikutnya! Sehat, sukses, dan selamat sampai tujuan untuk Kak *${booking.nama}*. 🙏✨`
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Quick Share URL Dispatchers
+ */
+export function generateQuickShareConfirmationUrl(
+  booking: BookingRecord,
+  namaRental?: string,
+  targetPhone?: string
+): string {
+  const phone = targetPhone || booking.nomorWa;
+  const text = generateQuickShareConfirmationText(booking, namaRental);
+  return generateWhatsAppLink(phone, text);
+}
+
+export function generateQuickShareReturnReminderUrl(
+  booking: BookingRecord,
+  namaRental?: string,
+  targetPhone?: string
+): string {
+  const phone = targetPhone || booking.nomorWa;
+  const text = generateQuickShareReturnReminderText(booking, namaRental);
+  return generateWhatsAppLink(phone, text);
+}
+
+export function generateQuickShareThankYouUrl(
+  booking: BookingRecord,
+  namaRental?: string,
+  targetPhone?: string
+): string {
+  const phone = targetPhone || booking.nomorWa;
+  const text = generateQuickShareThankYouText(booking, namaRental);
+  return generateWhatsAppLink(phone, text);
+}

@@ -4,34 +4,70 @@ import {
   OvertimePenaltyResult,
   RyokoDatabase,
   PhysicalUnit,
+  BookingStatus,
+  TariffCategory,
+  DurationOption,
 } from '../types/ryoko';
 
 export const TURNAROUND_BUFFER_SECONDS = 60 * 60; // 60 menit = 3600 detik (BR-04 revisi)
 
 /**
- * Pembersih teks standar (BR-06: sistem offline dan tidak memerlukan sensor NIK ketat)
+ * Redaksi NIK 16 digit otomatis (Snippet F - F-14)
+ * Menyamarkan NIK 16 digit menjadi ************XXXX tanpa merusak nomor HP atau string lain
+ */
+export const redactNik = (s: string): string => {
+  if (!s) return '';
+  return s.replace(/(?<!\d)(?:\d[ .-]?){15}\d(?!\d)/g, m => {
+    const digits = m.replace(/\D/g, '');
+    return '************' + digits.slice(-4);
+  });
+};
+
+/**
+ * Pembersih teks standar dengan redaksi NIK otomatis (F-14)
  */
 export function sanitizeTextNoNik(text: string): string {
   if (!text) return '';
-  return text.trim();
+  return redactNik(text.trim());
 }
 
 /**
- * Deteksi NIK (opsional / non-blocking)
+ * Deteksi pola NIK 16 digit
  */
 export function containsNikPattern(text: string): boolean {
   if (!text) return false;
-  return /(?:\d[\s\-]?){16}/.test(text);
+  return /(?<!\d)(?:\d[ .-]?){15}\d(?!\d)/.test(text);
 }
 
 /**
  * Format string tanggal ke Epoch detik WIB
+ * Jika format adalah YYYY-MM-DDTHH:mm, tambahkan :00+07:00 agar waktu selalu WIB independen dari zona perangkat
  */
 export function parseWibToEpoch(dateTimeStr: string): number {
   if (!dateTimeStr) return 0;
-  const date = new Date(dateTimeStr);
-  return Math.floor(date.getTime() / 1000);
+  const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dateTimeStr)
+    ? `${dateTimeStr}:00+07:00`
+    : dateTimeStr;
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? 0 : Math.floor(t / 1000);
 }
+
+/**
+ * Epoch -> nilai string input datetime-local dalam zona WIB (Asia/Jakarta)
+ * Mencegah pergeseran 7 jam UTC pada perangkat pengguna
+ */
+export const epochToWibInput = (epoch: number): string => {
+  if (!epoch) return '';
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(epoch * 1000).replace(' ', 'T');
+};
 
 /**
  * Format epoch detik ke tampilan tanggal WIB
@@ -41,40 +77,78 @@ export function formatEpochToWib(epoch: number): string {
   const d = new Date(epoch * 1000);
   return (
     d.toLocaleDateString('id-ID', {
+      timeZone: 'Asia/Jakarta',
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     }) +
     ' ' +
-    d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
+    d.toLocaleTimeString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+    }) +
     ' WIB'
   );
 }
 
 /**
- * Periksa apakah jadwal berada di luar jam operasional 07:00 - 23:00 WIB (D-06)
+ * Periksa apakah jadwal berada di luar jam operasional (default 07:00 - 23:00 WIB) (D-06)
  */
-export function isOutsideOperationalHours(dateTimeStr: string): boolean {
+export function isOutsideOperationalHours(
+  dateTimeStr: string,
+  settings?: { jamBuka?: number; jamTutup?: number }
+): boolean {
   if (!dateTimeStr) return false;
-  const d = new Date(dateTimeStr);
-  const hours = d.getHours();
-  return hours < 7 || hours >= 23;
+  const epoch = parseWibToEpoch(dateTimeStr);
+  if (!epoch) return false;
+  const d = new Date(epoch * 1000);
+  const hourStr = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    hour: 'numeric',
+    hour12: false,
+  }).format(d);
+  const hours = parseInt(hourStr, 10);
+  const open = settings?.jamBuka ?? 7;
+  const close = settings?.jamTutup ?? 23;
+  return hours < open || hours >= close;
 }
 
 /**
- * Generator Nomor Booking Atomik RYK-YYYYMMDD-XXX
+ * Generator Nomor Booking RYK-YYYYMMDD-XXX bebas tabrakan sequence (Snippet D - F-10)
  */
-export function generateBookingNumber(db: RyokoDatabase): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const prefix = `RYK-${year}${month}${day}-`;
+export function generateBookingNumber(
+  dbOrBookings: RyokoDatabase | Array<{ noBooking?: string; nomorBooking?: string }>,
+  now = new Date()
+): string {
+  const bookings = Array.isArray(dbOrBookings) ? dbOrBookings : dbOrBookings.bookings;
+  const ymd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(now)
+    .replaceAll('-', '');
+  const prefix = `RYK-${ymd}-`;
 
-  const existingToday = db.bookings.filter(b => b.noBooking && b.noBooking.startsWith(prefix));
-  const nextSeq = existingToday.length + 1;
-  return `${prefix}${String(nextSeq).padStart(3, '0')}`;
+  const maxSeq = bookings.reduce((mx, b) => {
+    const code = ('noBooking' in b && b.noBooking) ? b.noBooking : ((b as { nomorBooking?: string }).nomorBooking || '');
+    if (code && code.startsWith(prefix)) {
+      const seq = parseInt(code.slice(prefix.length), 10) || 0;
+      return Math.max(mx, seq);
+    }
+    return mx;
+  }, 0);
+
+  return `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
 }
+
+/**
+ * Generator ID numerik berikutnya yang aman dari tabrakan akibat penghapusan data (Snippet D)
+ */
+export const nextId = (rows: Array<{ id: number }>): number =>
+  rows.reduce((m, r) => Math.max(m, r.id), 0) + 1;
 
 /**
  * Format mata uang Rupiah
@@ -99,12 +173,16 @@ export function calculateOvertimePenalty(
   actualReturnEpoch?: number
 ): OvertimePenaltyResult {
   const endEpoch = booking.endEpoch || parseWibToEpoch(booking.jamTanggalSelesai);
-  const returnEpoch =
-    actualReturnEpoch ||
-    booking.actualReturnEpoch ||
-    (booking.selesaiAt ? parseWibToEpoch(booking.selesaiAt) : Math.floor(Date.now() / 1000));
+  let returnEpoch = actualReturnEpoch || booking.actualReturnEpoch;
+  if (!returnEpoch && booking.selesaiAt) {
+    const parsed = parseWibToEpoch(booking.selesaiAt);
+    if (parsed > 0) returnEpoch = parsed;
+  }
+  if (!returnEpoch) {
+    returnEpoch = Math.floor(Date.now() / 1000);
+  }
 
-  const dendaHarian = booking.dendaHarianPerJamSnapshot ?? motor?.dendaHarianPerJam ?? 20000;
+  const dendaHarian = motor.dendaHarianPerJam || 20000;
 
   if (!endEpoch || returnEpoch <= endEpoch) {
     return {
@@ -131,10 +209,10 @@ export function calculateOvertimePenalty(
       };
     }
 
-    const p3 = motor.harga3Jam;
-    const p6 = motor.harga6Jam;
-    const p9 = motor.harga9Jam;
-    const p12 = motor.harga12Jam;
+    const p3 = motor.harga3Jam || 45000;
+    const p6 = motor.harga6Jam || 60000;
+    const p9 = motor.harga9Jam || 75000;
+    const p12 = motor.harga12Jam || 85000;
 
     // ShortRent 12 Jam -> Denda sama dengan denda harian per jam
     if (booking.pilihanDurasi === '12_jam') {
@@ -227,17 +305,14 @@ export function isUnitAvailableForRange(
   const unit = db.units.find(u => u.id === unitId);
   if (!unit || unit.statusServis === 'servis') return false;
 
-  const nowEpoch = Math.floor(Date.now() / 1000);
-  const bufferSeconds = (db.settings?.turnaroundBufferMinutes || 60) * 60;
-
-  // Cek tracking status saat ini (jika sewa diminta segera/hari ini)
+  // Cek tracking status
   const track = db.tracking.find(t => t.unitId === unitId);
   if (track && (track.statusPosisi === 'servis' || track.statusPosisi === 'kurir')) {
-    // Jika unit sedang servis atau kurir saat ini, dan jadwal mulai berada dalam 12 jam ke depan
-    if (reqStartEpoch <= nowEpoch + 12 * 3600) {
-      return false;
-    }
+    // Unit sedang servis atau dipakai kurir
+    return false;
   }
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
 
   // Periksa semua transaksi aktif yang mengunci unit ini
   const activeBookings = db.bookings.filter(
@@ -252,8 +327,8 @@ export function isUnitAvailableForRange(
     const bEnd = b.endEpoch || parseWibToEpoch(b.jamTanggalSelesai);
     const effectiveEnd = b.status === 'ryokou_disewa' ? Math.max(bEnd, nowEpoch) : bEnd;
 
-    const bufferedStart = bStart - bufferSeconds;
-    const bufferedEnd = effectiveEnd + bufferSeconds;
+    const bufferedStart = bStart - TURNAROUND_BUFFER_SECONDS;
+    const bufferedEnd = effectiveEnd + TURNAROUND_BUFFER_SECONDS;
 
     if (reqStartEpoch < bufferedEnd && reqEndEpoch > bufferedStart) {
       return false;
@@ -307,4 +382,139 @@ export function getPublicStockIndicator(
     return { status: 'tersedia', label: 'Tersedia' };
   }
   return { status: 'habis', label: 'Habis (Konfirmasi WA)' };
+}
+
+/**
+ * Matriks Transisi Status Resmi RyokoRent (Snippet C - BR-02)
+ */
+export const NEXT_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
+  ryokou_booking: ['ryokou_approved', 'ryokou_dibatalkan'],
+  ryokou_approved: ['ryokou_disewa', 'ryokou_booking', 'ryokou_dibatalkan'],
+  ryokou_disewa: ['ryokou_selesai', 'ryokou_diservis'],
+  ryokou_diservis: ['ryokou_disewa', 'ryokou_selesai'],
+  ryokou_selesai: [],
+  ryokou_dibatalkan: [],
+};
+
+/**
+ * Validasi transisi status pemesanan dengan guard ketersediaan & kepemilikan unit (F-04, F-05, F-08)
+ * Mengembalikan string pesan galat jika tidak sah, atau null bila transisi sah.
+ */
+export function checkTransition(
+  booking: BookingRecord,
+  to: BookingStatus,
+  db: RyokoDatabase,
+  unitId: number | null | undefined = booking.unitId
+): string | null {
+  const allowed = NEXT_STATUS_TRANSITIONS[booking.status] || [];
+  if (!allowed.includes(to)) {
+    return `Transisi status '${booking.status}' ke '${to}' tidak diizinkan.`;
+  }
+
+  if (to === 'ryokou_approved' || to === 'ryokou_disewa') {
+    if (!unitId) {
+      return 'Unit fisik belum dipilih atau belum dialokasikan.';
+    }
+    // Periksa apakah unit sedang dibawa oleh booking lain yang berstatus disewa
+    const heldByOther = db.bookings.some(
+      o => o.id !== booking.id && o.unitId === unitId && o.status === 'ryokou_disewa'
+    );
+    if (heldByOther) {
+      return 'Unit fisik ini saat ini masih dibawa oleh penyewa lain dan belum dikembalikan.';
+    }
+  }
+
+  if (to === 'ryokou_approved') {
+    const start = booking.startEpoch || parseWibToEpoch(booking.jamTanggalMulai);
+    const end = booking.endEpoch || parseWibToEpoch(booking.jamTanggalSelesai);
+    if (!isUnitAvailableForRange(unitId!, start, end, db, booking.id)) {
+      return 'Unit fisik bentrok jadwal dengan transaksi sewa lain (buffer pemulihan 60 menit).';
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Kalkulasi tarif sewa cerdas berdasarkan model motor, kategori tarif, durasi, dan rentang tanggal (F-03)
+ * Menghormati kesepakatan awal (deal awal harian tetap harian murni meski 8 hari atau lebih; mingguan jika deal awal mingguan; bulanan jika deal awal bulanan)
+ */
+export function calculateDynamicRentalTariff(
+  motor: MotorModel,
+  kategoriTarif: TariffCategory,
+  pilihanDurasi: DurationOption,
+  startEpoch: number,
+  endEpoch: number,
+  selectedPackage?: { id: number; namaPaket: string; hargaPaket: number }
+): { totalHarga: number; labelDurasi: string } {
+  // Jika kategori paket wisata
+  if (kategoriTarif === 'paket') {
+    const harga = selectedPackage?.hargaPaket || 260000;
+    const label = selectedPackage?.namaPaket || 'Paket Promo Wisata Bromo';
+    return { totalHarga: harga, labelDurasi: label };
+  }
+
+  // Jika durasi jam (ShortRent)
+  if (kategoriTarif === 'jam' || ['3_jam', '6_jam', '9_jam', '12_jam'].includes(pilihanDurasi)) {
+    if (pilihanDurasi === '3_jam') return { totalHarga: motor.harga3Jam || 45000, labelDurasi: 'ShortRent 3 Jam' };
+    if (pilihanDurasi === '6_jam') return { totalHarga: motor.harga6Jam || 60000, labelDurasi: 'ShortRent 6 Jam' };
+    if (pilihanDurasi === '9_jam') return { totalHarga: motor.harga9Jam || 75000, labelDurasi: 'ShortRent 9 Jam' };
+    if (pilihanDurasi === '12_jam') return { totalHarga: motor.harga12Jam || 85000, labelDurasi: 'ShortRent 12 Jam' };
+    return { totalHarga: motor.harga3Jam || 45000, labelDurasi: 'ShortRent 3 Jam' };
+  }
+
+  const harianRate = motor.harga1Hari || 85000;
+  const mingguanRate = motor.harga1Minggu || 500000;
+  const bulananRate = motor.harga1Bulan || 1750000;
+
+  // Jika kesepakatan awal adalah BULANAN
+  if (pilihanDurasi === '1_bulan') {
+    if (startEpoch && endEpoch && endEpoch > startEpoch) {
+      const totalHours = (endEpoch - startEpoch) / 3600;
+      const months = Math.max(1, Math.floor(totalHours / (30 * 24)));
+      const extraHours = Math.max(0, totalHours - months * 30 * 24);
+      const extraDays = Math.ceil(extraHours / 24);
+      const totalHarga = months * bulananRate + extraDays * harianRate;
+      return {
+        totalHarga,
+        labelDurasi:
+          extraDays > 0
+            ? `Sewa ${months} Bulan + ${extraDays} Hari (Tarif Bulanan)`
+            : months > 1
+            ? `Sewa ${months} Bulan (Tarif Bulanan)`
+            : '1 Bulan (30 Hari Penuh) - Tarif Bulanan',
+      };
+    }
+    return { totalHarga: bulananRate, labelDurasi: '1 Bulan (30 Hari)' };
+  }
+
+  // Jika kesepakatan awal adalah MINGGUAN
+  if (pilihanDurasi === '1_minggu') {
+    if (startEpoch && endEpoch && endEpoch > startEpoch) {
+      const totalHours = (endEpoch - startEpoch) / 3600;
+      const weeks = Math.max(1, Math.floor(totalHours / (7 * 24)));
+      const extraHours = Math.max(0, totalHours - weeks * 7 * 24);
+      const extraDays = Math.ceil(extraHours / 24);
+      const totalHarga = weeks * mingguanRate + extraDays * harianRate;
+      return {
+        totalHarga,
+        labelDurasi:
+          extraDays > 0
+            ? `Sewa ${weeks} Minggu + ${extraDays} Hari (Tarif Mingguan)`
+            : `Sewa ${weeks} Minggu (7 Hari) - Tarif Mingguan`,
+      };
+    }
+  }
+
+  // Default: Kategori HARIAN (Deal awal harian tetap dihitung harian, misal 8 hari = 8 x harga harian tanpa konversi otomatis)
+  if (startEpoch && endEpoch && endEpoch > startEpoch) {
+    const totalHours = (endEpoch - startEpoch) / 3600;
+    const days = Math.max(1, Math.ceil(totalHours / 24));
+    return {
+      totalHarga: days * harianRate,
+      labelDurasi: days === 1 ? '1 Hari (24 Jam)' : `Sewa ${days} Hari (${days * 24} Jam) - Tarif Harian`,
+    };
+  }
+
+  return { totalHarga: harianRate, labelDurasi: '1 Hari (24 Jam)' };
 }

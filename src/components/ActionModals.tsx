@@ -345,7 +345,7 @@ interface TukarUnitModalProps {
   booking: BookingRecord;
   db: RyokoDatabase;
   onClose: () => void;
-  onConfirmExchange: (bookingId: number, newUnitId: number, reason: string, oldUnitDestStatus: 'servis' | 'parkir') => void;
+  onConfirmExchange: (bookingId: number, newUnitId: number, reason: string) => void;
 }
 
 export const TukarUnitModal: React.FC<TukarUnitModalProps> = ({
@@ -369,13 +369,12 @@ export const TukarUnitModal: React.FC<TukarUnitModalProps> = ({
     return availableUnits.length > 0 ? availableUnits[0].unit.id : 0;
   });
 
-  const [oldUnitDestStatus, setOldUnitDestStatus] = useState<'servis' | 'parkir'>('servis');
-  const [reason, setReason] = useState<string>('Perawatan berkala / kendala mesin di jalan');
+  const [reason, setReason] = useState<string>('Perawatan berkala / servis armada di jalan');
   const [autoOpenWa, setAutoOpenWa] = useState(true);
 
   const handleConfirm = () => {
     if (!newUnitId) return;
-    onConfirmExchange(booking.id, newUnitId, reason, oldUnitDestStatus);
+    onConfirmExchange(booking.id, newUnitId, reason);
 
     if (autoOpenWa && booking.nomorWa) {
       const newUnitObj = db.units.find(u => u.id === newUnitId);
@@ -390,7 +389,7 @@ export const TukarUnitModal: React.FC<TukarUnitModalProps> = ({
         operator: db.settings.operatorName || 'Operator Ryoko',
       };
       const waUrl = generateUnitExchangeNoticeWhatsAppUrl(booking, exchangeData);
-      if (waUrl) window.open(waUrl, '_blank');
+      window.open(waUrl, '_blank');
     }
 
     onClose();
@@ -449,42 +448,6 @@ export const TukarUnitModal: React.FC<TukarUnitModalProps> = ({
               </select>
             </div>
           )}
-
-          <div>
-            <label className="block font-semibold mb-1 text-slate-200">Status Unit Lama yang Ditarik:</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setOldUnitDestStatus('servis')}
-                className={`p-2.5 rounded-xl border text-left transition ${
-                  oldUnitDestStatus === 'servis'
-                    ? 'bg-rose-950/80 border-rose-600 text-rose-200 font-bold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                  <span>Masuk Servis</span>
-                </div>
-                <p className="text-[10px] text-slate-400 font-normal">Unit bermasalah / bengkel</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setOldUnitDestStatus('parkir')}
-                className={`p-2.5 rounded-xl border text-left transition ${
-                  oldUnitDestStatus === 'parkir'
-                    ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200 font-bold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <span>Siap Parkir</span>
-                </div>
-                <p className="text-[10px] text-slate-400 font-normal">Unit prima / tukar selera</p>
-              </button>
-            </div>
-          </div>
 
           <div>
             <label className="block font-semibold mb-1 text-slate-200">Alasan Pertukaran Unit:</label>

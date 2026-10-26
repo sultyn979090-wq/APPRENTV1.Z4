@@ -19,6 +19,12 @@ import {
 import { AndroidStatusBar } from './components/AndroidStatusBar';
 import { AndroidTopBar } from './components/AndroidTopBar';
 import { AndroidBottomNav, ActiveNavTab } from './components/AndroidBottomNav';
+import {
+  checkTransition,
+  nextId,
+  isUnitAvailableForRange,
+  parseWibToEpoch,
+} from './services/bookingEngine';
 import { DashboardView } from './components/DashboardView';
 import { BookingsView } from './components/BookingsView';
 import { TrackingView } from './components/TrackingView';
@@ -41,6 +47,8 @@ import {
 } from './components/ActionModals';
 import { PWAInstallModal } from './components/PWAInstallModal';
 import { DigitalReceiptModal } from './components/DigitalReceiptModal';
+import { BookingDetailModal, QuickShareTab } from './components/BookingDetailModal';
+import { MonthlyReportView } from './components/MonthlyReportView';
 
 export const App: React.FC = () => {
   // Database State in LocalStorage
@@ -65,6 +73,11 @@ export const App: React.FC = () => {
   const [selectedFinishBooking, setSelectedFinishBooking] = useState<BookingRecord | null>(null);
   const [selectedUpdateTracking, setSelectedUpdateTracking] = useState<UnitTracking | null>(null);
   const [selectedReceiptBooking, setSelectedReceiptBooking] = useState<BookingRecord | null>(null);
+  const [selectedDetailBooking, setSelectedDetailBooking] = useState<{
+    booking: BookingRecord;
+    initialTab: 'detail' | 'quick_share';
+    initialShareTab: QuickShareTab;
+  } | null>(null);
 
   // Parsed ZLCE Session State for Recovery Wizard
   const recoverySessionState: ParsedSessionState = useMemo(() => {
@@ -105,15 +118,41 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Sync state helper
+  // Sync state helper with QuotaExceeded error propagation (F-12)
   const updateDatabaseState = useCallback((newDb: RyokoDatabase, actionName?: string, detail?: string) => {
+    let dbToPersist = newDb;
     if (actionName && detail) {
-      appendAuditLog(newDb, actionName, detail);
-    } else {
-      saveDatabase(newDb);
+      dbToPersist = appendAuditLog(newDb, actionName, detail);
     }
-    setDb({ ...newDb });
+    const saveRes = saveDatabase(dbToPersist);
+    if (!saveRes.ok) {
+      alert(`Peringatan Kuota Penyimpanan: ${saveRes.message}`);
+    }
+    setDb({ ...dbToPersist });
   }, []);
+
+  // Multi-tab cross synchronization listener (F-12)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'ryokourent_db_v1') {
+        setDb(loadDatabase());
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  // Helper to open Booking Detail Modal / Quick Share
+  const handleOpenDetailModal = useCallback(
+    (
+      booking: BookingRecord,
+      initialTab: 'detail' | 'quick_share' = 'detail',
+      initialShareTab: QuickShareTab = 'confirmation'
+    ) => {
+      setSelectedDetailBooking({ booking, initialTab, initialShareTab });
+    },
+    []
+  );
 
   // Sync Armada helper (D-26 & Opsi 3A: 1 Baris per Unit Fisik)
   const handleSyncArmada = useCallback(() => {
@@ -178,16 +217,24 @@ export const App: React.FC = () => {
     let updatedTracking = [...db.tracking];
 
     if (lockUnitId) {
+      // Guard B1: Verifikasi ketersediaan unit sebelum mengunci
+      const start = newBooking.startEpoch || parseWibToEpoch(newBooking.jamTanggalMulai);
+      const end = newBooking.endEpoch || parseWibToEpoch(newBooking.jamTanggalSelesai);
+      if (!isUnitAvailableForRange(lockUnitId, start, end, db)) {
+        alert('Gagal Kunci Unit: Unit fisik bentrok jadwal atau sedang tidak aktif.');
+        return;
+      }
+
       updatedTracking = updatedTracking.map(t => {
         if (t.unitId === lockUnitId) {
           return {
             ...t,
-            statusPosisi: 'parkir' as const, // Masih di pool menunggu serah terima
+            statusPosisi: 'parkir' as const, // Tetap parkir sampai serah terima fisik dilakukan (BR-02)
             bookingId: newBooking.id,
             noBooking: newBooking.noBooking,
             namaPenyewa: newBooking.nama,
             tenggatKembali: newBooking.jamTanggalSelesai.replace('T', ' '),
-            catatan: `Terkunci untuk booking #${newBooking.noBooking} (Menunggu serah terima)`,
+            catatan: `Unit dipesan & terkunci untuk booking #${newBooking.noBooking} (${newBooking.nama})`,
             updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
             updatedBy: db.settings.operatorName || 'Operator Ryoko',
           };
@@ -211,6 +258,15 @@ export const App: React.FC = () => {
 
   // 2. Approve Booking & Lock Unit (D-04)
   const handleConfirmApprove = (bookingId: number, unitId: number) => {
+    const targetBooking = db.bookings.find(b => b.id === bookingId);
+    if (!targetBooking) return;
+
+    const transitionError = checkTransition(targetBooking, 'ryokou_approved', db, unitId);
+    if (transitionError) {
+      alert(`Peringatan Guard: ${transitionError}`);
+      return;
+    }
+
     const unit = db.units.find(u => u.id === unitId);
     if (!unit) return;
 
@@ -223,8 +279,6 @@ export const App: React.FC = () => {
       ' ' +
       new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
       ' WIB';
-
-    const targetBooking = db.bookings.find(b => b.id === bookingId);
 
     const updatedBookings = db.bookings.map(b => {
       if (b.id === bookingId) {
@@ -239,26 +293,9 @@ export const App: React.FC = () => {
       return b;
     });
 
-    const updatedTracking = db.tracking.map(t => {
-      if (t.unitId === unitId) {
-        return {
-          ...t,
-          bookingId,
-          noBooking: targetBooking?.noBooking,
-          namaPenyewa: targetBooking?.nama,
-          tenggatKembali: targetBooking?.jamTanggalSelesai.replace('T', ' '),
-          catatan: `Unit dikunci untuk booking #${targetBooking?.noBooking || bookingId}`,
-          updatedAt: nowStr,
-          updatedBy: db.settings.operatorName || 'Operator Ryoko',
-        };
-      }
-      return t;
-    });
-
     const newDb: RyokoDatabase = {
       ...db,
       bookings: updatedBookings,
-      tracking: updatedTracking,
     };
 
     updateDatabaseState(
@@ -270,6 +307,15 @@ export const App: React.FC = () => {
 
   // 3. Handover Unit / Serah Terima (Mulai Sewa D-04)
   const handleConfirmHandover = (bookingId: number) => {
+    const targetBooking = db.bookings.find(b => b.id === bookingId);
+    if (!targetBooking) return;
+
+    const transitionError = checkTransition(targetBooking, 'ryokou_disewa', db);
+    if (transitionError) {
+      alert(`Peringatan Guard: ${transitionError}`);
+      return;
+    }
+
     const nowStr =
       new Date().toLocaleDateString('id-ID', {
         day: '2-digit',
@@ -279,9 +325,6 @@ export const App: React.FC = () => {
       ' ' +
       new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
       ' WIB';
-
-    const targetBooking = db.bookings.find(b => b.id === bookingId);
-    if (!targetBooking) return;
 
     const updatedBookings = db.bookings.map(b => {
       if (b.id === bookingId) {
@@ -325,15 +368,18 @@ export const App: React.FC = () => {
   };
 
   // 4. Tukar Unit Berkala (D-19)
-  const handleConfirmExchange = (
-    bookingId: number,
-    newUnitId: number,
-    reason: string,
-    oldUnitDestStatus: 'servis' | 'parkir' = 'servis'
-  ) => {
+  const handleConfirmExchange = (bookingId: number, newUnitId: number, reason: string) => {
     const targetBooking = db.bookings.find(b => b.id === bookingId);
     const newUnit = db.units.find(u => u.id === newUnitId);
     if (!targetBooking || !newUnit) return;
+
+    const heldByOther = db.bookings.some(
+      o => o.id !== targetBooking.id && o.unitId === newUnitId && o.status === 'ryokou_disewa'
+    );
+    if (heldByOther) {
+      alert('Gagal Tukar Unit: Unit fisik baru saat ini sedang aktif disewa pelanggan lain.');
+      return;
+    }
 
     const nowStr =
       new Date().toLocaleDateString('id-ID', {
@@ -369,17 +415,17 @@ export const App: React.FC = () => {
       return b;
     });
 
-    // Update tracking: old unit to specified status, new unit to disewa
+    // Update tracking: old unit back to parkir (or marked for check), new unit to disewa
     const updatedTracking = db.tracking.map(t => {
       if (t.unitId === targetBooking.unitId) {
         return {
           ...t,
-          statusPosisi: oldUnitDestStatus,
+          statusPosisi: 'parkir' as const,
           bookingId: undefined,
           noBooking: undefined,
           namaPenyewa: undefined,
           tenggatKembali: undefined,
-          catatan: `Unit ditarik tukar unit #${targetBooking.noBooking}. Alasan: ${reason} [Posisi: ${oldUnitDestStatus}]`,
+          catatan: `Unit ditarik dari booking #${targetBooking.noBooking}. Alasan: ${reason}`,
           updatedAt: nowStr,
           updatedBy: db.settings.operatorName || 'Operator Ryoko',
         };
@@ -400,27 +446,16 @@ export const App: React.FC = () => {
       return t;
     });
 
-    const updatedUnits = db.units.map(u => {
-      if (u.id === targetBooking.unitId) {
-        return {
-          ...u,
-          statusServis: (oldUnitDestStatus === 'servis' ? 'servis' : 'aktif') as 'aktif' | 'servis',
-        };
-      }
-      return u;
-    });
-
     const newDb: RyokoDatabase = {
       ...db,
       bookings: updatedBookings,
       tracking: updatedTracking,
-      units: updatedUnits,
     };
 
     updateDatabaseState(
       newDb,
       'Tukar Unit Berkala (D-19)',
-      `Pertukaran unit #${targetBooking.noBooking}: ${targetBooking.snapshotKodeUnit} digantikan ${newUnit.kodeUnit}. Alasan: ${reason} (Unit lama -> ${oldUnitDestStatus})`
+      `Pertukaran unit #${targetBooking.noBooking}: ${targetBooking.snapshotKodeUnit} digantikan ${newUnit.kodeUnit}. Alasan: ${reason}`
     );
   };
 
@@ -432,6 +467,12 @@ export const App: React.FC = () => {
   ) => {
     const targetBooking = db.bookings.find(b => b.id === bookingId);
     if (!targetBooking) return;
+
+    const transitionError = checkTransition(targetBooking, 'ryokou_selesai', db);
+    if (transitionError) {
+      alert(`Peringatan Guard: ${transitionError}`);
+      return;
+    }
 
     const nowEpoch = Math.floor(Date.now() / 1000);
     const nowStr =
@@ -491,37 +532,187 @@ export const App: React.FC = () => {
     );
   };
 
-  // 6. Cancel / Reject Booking (D-20 & F-21)
-  const handleCancelBooking = (bookingId: number) => {
+  // 5b. Alihkan Unit Disewa ke Servis (F-08)
+  const handleSendToService = (bookingId: number, reason?: string) => {
     const targetBooking = db.bookings.find(b => b.id === bookingId);
     if (!targetBooking) return;
-
-    if (targetBooking.status === 'ryokou_disewa' || targetBooking.status === 'ryokou_selesai') {
-      alert('Proteksi Keamanan (D-20 & F-21): Unit yang sedang berstatus "Disewa" atau transaksi "Selesai" tidak dapat dibatalkan!');
+    const transitionError = checkTransition(targetBooking, 'ryokou_diservis', db);
+    if (transitionError) {
+      alert(`Gagal Alihkan ke Servis: ${transitionError}`);
       return;
     }
 
-    const ok = window.confirm(
-      `Apakah Anda yakin ingin membatalkan booking #${targetBooking.noBooking} oleh ${targetBooking.nama}? Status akan diubah menjadi 'Dibatalkan' dan unit armada akan dibebaskan kembali ke pool.`
-    );
-    if (!ok) return;
+    const nowStr =
+      new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }) +
+      ' ' +
+      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
+      ' WIB';
 
-    // Tandai status menjadi ryokou_dibatalkan (tidak menghapus permanen agar omset & audit aman)
     const updatedBookings = db.bookings.map(b => {
       if (b.id === bookingId) {
         return {
           ...b,
-          status: 'ryokou_dibatalkan' as const,
+          status: 'ryokou_diservis' as const,
+          catatanKhusus: b.catatanKhusus
+            ? `${b.catatanKhusus} | [Servis: ${reason || 'Perawatan teknis'}]`
+            : `[Servis: ${reason || 'Perawatan teknis'}]`,
         };
       }
       return b;
     });
 
-    // If unit was locked, release it back to pool
+    const updatedTracking = db.tracking.map(t => {
+      if (t.unitId === targetBooking.unitId) {
+        return {
+          ...t,
+          statusPosisi: 'servis' as const,
+          catatan: `Unit dialihkan ke servis darurat (${reason || 'Kendala sewa'})`,
+          updatedAt: nowStr,
+          updatedBy: db.settings.operatorName || 'Operator Ryoko',
+        };
+      }
+      return t;
+    });
+
+    const newDb: RyokoDatabase = {
+      ...db,
+      bookings: updatedBookings,
+      tracking: updatedTracking,
+    };
+
+    updateDatabaseState(
+      newDb,
+      'Unit Masuk Servis Darurat',
+      `Booking #${targetBooking.noBooking} (Unit ${targetBooking.snapshotKodeUnit}) masuk status Diservis (${reason || 'Perawatan teknis'})`
+    );
+  };
+
+  // 5c. Pulihkan dari Servis Darurat kembali ke Sewa atau Selesai (F-08)
+  const handleReturnFromService = (bookingId: number, targetStatus: 'ryokou_disewa' | 'ryokou_selesai') => {
+    const targetBooking = db.bookings.find(b => b.id === bookingId);
+    if (!targetBooking) return;
+    const transitionError = checkTransition(targetBooking, targetStatus, db);
+    if (transitionError) {
+      alert(`Gagal Memulihkan dari Servis: ${transitionError}`);
+      return;
+    }
+
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const nowStr =
+      new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }) +
+      ' ' +
+      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
+      ' WIB';
+
+    const updatedBookings = db.bookings.map(b => {
+      if (b.id === bookingId) {
+        return {
+          ...b,
+          status: targetStatus,
+          ...(targetStatus === 'ryokou_selesai' ? { selesaiAt: nowStr, actualReturnEpoch: nowEpoch } : {}),
+        };
+      }
+      return b;
+    });
+
+    const updatedTracking = db.tracking.map(t => {
+      if (t.unitId === targetBooking.unitId) {
+        return {
+          ...t,
+          statusPosisi: targetStatus === 'ryokou_disewa' ? ('disewa' as const) : ('parkir' as const),
+          ...(targetStatus === 'ryokou_selesai'
+            ? { bookingId: undefined, noBooking: undefined, namaPenyewa: undefined, tenggatKembali: undefined }
+            : {}),
+          updatedAt: nowStr,
+          updatedBy: db.settings.operatorName || 'Operator Ryoko',
+        };
+      }
+      return t;
+    });
+
+    const newDb: RyokoDatabase = {
+      ...db,
+      bookings: updatedBookings,
+      tracking: updatedTracking,
+    };
+
+    updateDatabaseState(
+      newDb,
+      'Pengembalian dari Servis',
+      `Booking #${targetBooking.noBooking} kembali ke status ${
+        targetStatus === 'ryokou_disewa' ? 'Sedang Disewa' : 'Selesai Sewa'
+      }`
+    );
+  };
+
+  // 6. Cancel / Reject Booking (D-20, F-21, B8 Guard & Soft-Cancel)
+  const handleCancelBooking = (bookingId: number) => {
+    const targetBooking = db.bookings.find(b => b.id === bookingId);
+    if (!targetBooking) return;
+
+    if (targetBooking.status === 'ryokou_disewa') {
+      alert('Proteksi Keamanan (D-20 & F-21): Unit yang sedang berstatus "Disewa" dilarang dibatalkan sebelum transaksi pengembalian selesai!');
+      return;
+    }
+    if (targetBooking.status === 'ryokou_diservis') {
+      alert('Proteksi Keamanan (D-20): Transaksi dengan unit yang sedang di bengkel (Diservis) tidak boleh dibatalkan langsung!');
+      return;
+    }
+    if (targetBooking.status === 'ryokou_selesai') {
+      alert('Proteksi Keamanan (B8): Transaksi yang sudah Selesai tidak boleh dibatalkan karena merupakan rekaman riwayat resmi!');
+      return;
+    }
+    if (targetBooking.status === 'ryokou_dibatalkan') {
+      alert('Pemberitahuan: Transaksi ini sudah berstatus dibatalkan.');
+      return;
+    }
+
+    const ok = window.confirm(
+      `Apakah Anda yakin ingin membatalkan booking #${targetBooking.noBooking} oleh ${targetBooking.nama}? Status akan diubah menjadi Dibatalkan dan unit fisik (jika ada) akan dibebaskan kembali ke pool.`
+    );
+    if (!ok) return;
+
+    const nowStr =
+      new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }) +
+      ' ' +
+      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
+      ' WIB';
+
+    // Soft cancel: status diubah ke ryokou_dibatalkan agar riwayat audit tidak hilang (B8)
+    const updatedBookings = db.bookings.map(b => {
+      if (b.id === bookingId) {
+        return {
+          ...b,
+          status: 'ryokou_dibatalkan' as const,
+          catatanKhusus: b.catatanKhusus
+            ? `${b.catatanKhusus} | [Dibatalkan: ${nowStr}]`
+            : `[Dibatalkan: ${nowStr}]`,
+        };
+      }
+      return b;
+    });
+
+    // If unit was locked, release it back to pool with B3 check (t.bookingId === bookingId)
     let updatedTracking = [...db.tracking];
     if (targetBooking.unitId) {
       updatedTracking = updatedTracking.map(t => {
-        if (t.unitId === targetBooking.unitId && t.statusPosisi !== 'servis') {
+        if (
+          t.unitId === targetBooking.unitId &&
+          (!t.bookingId || t.bookingId === bookingId) &&
+          t.statusPosisi !== 'servis'
+        ) {
           return {
             ...t,
             statusPosisi: 'parkir' as const,
@@ -529,8 +720,8 @@ export const App: React.FC = () => {
             noBooking: undefined,
             namaPenyewa: undefined,
             tenggatKembali: undefined,
-            catatan: `Armada dibebaskan kembali ke pool (Booking #${targetBooking.noBooking} dibatalkan operator)`,
-            updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+            catatan: `Unit dibebaskan dari booking #${targetBooking.noBooking} (dibatalkan)`,
+            updatedAt: nowStr,
             updatedBy: db.settings.operatorName || 'Operator Ryoko',
           };
         }
@@ -546,8 +737,8 @@ export const App: React.FC = () => {
 
     updateDatabaseState(
       newDb,
-      'Batal Booking',
-      `Pembatalan booking #${targetBooking.noBooking} oleh operator (Status: Dibatalkan)`
+      'Batal Booking (Soft-Cancel)',
+      `Pembatalan booking #${targetBooking.noBooking} (${targetBooking.nama}). Unit fisik dibebaskan.`
     );
   };
 
@@ -596,30 +787,18 @@ export const App: React.FC = () => {
 
   // 7.5 Catat Servis Rutin (7 Kategori BR-08)
   const handleAddServiceRecord = (record: Omit<ServiceRecord, 'id' | 'createdAt'>) => {
-    // Validasi silang: jika unit sedang aktif DISEWA
-    const activeRental = db.bookings.find(b => b.unitId === record.unitId && b.status === 'ryokou_disewa');
-    if (activeRental) {
-      const confirmHistoryOnly = window.confirm(
-        `Perhatian: Unit ${record.kodeUnit} saat ini tercatat sedang aktif DISEWA oleh ${activeRental.nama} (#${activeRental.noBooking}).\n\nApakah ini pencatatan riwayat/servis lampau tanpa menarik unit dari penyewa saat ini? (Klik OK untuk catat riwayat tanpa mengubah posisi armada menjadi servis)`
-      );
-      if (!confirmHistoryOnly) return;
-
-      const newRecord: ServiceRecord = {
-        ...record,
-        id: `SRV-${String((db.serviceRecords?.length || 0) + 1).padStart(3, '0')}`,
-        createdAt: new Date().toISOString(),
-      };
-      const newDb: RyokoDatabase = {
-        ...db,
-        serviceRecords: [newRecord, ...(db.serviceRecords || [])],
-      };
-      updateDatabaseState(newDb, 'Catat Riwayat Servis', `Servis [${record.kategoriServis}] dicatat untuk unit ${record.kodeUnit}`);
-      return;
-    }
+    const maxSrvNum = (db.serviceRecords || []).reduce((max, s) => {
+      const match = s.id?.match(/SRV-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 0);
 
     const newRecord: ServiceRecord = {
       ...record,
-      id: `SRV-${String((db.serviceRecords?.length || 0) + 1).padStart(3, '0')}`,
+      id: `SRV-${String(maxSrvNum + 1).padStart(3, '0')}`,
       createdAt: new Date().toISOString(),
     };
     const updatedServiceRecords = [newRecord, ...(db.serviceRecords || [])];
@@ -634,14 +813,17 @@ export const App: React.FC = () => {
       new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
       ' WIB';
 
-    // Perbarui catatan di tabel pelacakan armada fisik
+    // Perbarui catatan di tabel pelacakan armada fisik (F-11 guard: jika disewa, jangan tiban posisi)
     const updatedTracking = db.tracking.map(t => {
       if (t.unitId === record.unitId) {
+        const isRented = t.statusPosisi === 'disewa';
         return {
           ...t,
-          statusPosisi: 'servis' as const,
+          statusPosisi: isRented ? ('disewa' as const) : ('servis' as const),
           namaBengkel: record.bengkelMekanik,
-          catatan: `Servis [${record.kategoriServis}]: ${record.keterangan}`,
+          catatan: isRented
+            ? `${t.catatan || ''} | Servis [${record.kategoriServis}]: ${record.keterangan}`.trim()
+            : `Servis [${record.kategoriServis}]: ${record.keterangan}`,
           updatedAt: nowStr,
           updatedBy: db.settings.operatorName || 'Operator Ryoko',
         };
@@ -675,7 +857,7 @@ export const App: React.FC = () => {
 
   // 8. Add Physical Unit to Garage
   const handleAddPhysicalUnit = (unitData: Omit<PhysicalUnit, 'id'>) => {
-    const newId = 100 + db.units.length + 1;
+    const newId = Math.max(101, nextId(db.units));
     const newUnit: PhysicalUnit = {
       ...unitData,
       id: newId,
@@ -918,10 +1100,10 @@ export const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-text antialiased">
+    <div className="min-h-[100dvh] bg-slate-950 text-slate-100 flex flex-col font-sans select-text antialiased">
       {/* Container wrapper: Switch between Simulated Mobile APK Viewport vs Full Screen */}
       <div
-        className={`mx-auto w-full transition-all duration-200 flex flex-col min-h-screen ${
+        className={`mx-auto w-full transition-all duration-200 flex flex-col min-h-[100dvh] ${
           isMobileDeviceView
             ? 'max-w-md my-0 sm:my-4 border-0 sm:border sm:border-slate-800/90 sm:rounded-3xl sm:shadow-2xl sm:shadow-cyan-950/50 overflow-hidden'
             : 'max-w-7xl'
@@ -965,13 +1147,14 @@ export const App: React.FC = () => {
               onNavigateTab={tab => setActiveTab(tab)}
               onOpenNewBooking={() => setIsNewBookingModalOpen(true)}
               onSelectBooking={b => {
-                setActiveTab('bookings');
+                handleOpenDetailModal(b, 'detail');
               }}
               onSelectTracking={t => {
                 setSelectedUpdateTracking(t);
               }}
               onSyncArmada={handleSyncArmada}
               onOpenRecoveryWizard={() => setIsRecoveryModalOpen(true)}
+              onUpdateDatabase={updateDatabaseState}
             />
           )}
 
@@ -985,6 +1168,9 @@ export const App: React.FC = () => {
               onOpenFinishModal={b => setSelectedFinishBooking(b)}
               onCancelBooking={handleCancelBooking}
               onOpenReceiptModal={b => setSelectedReceiptBooking(b)}
+              onOpenDetailModal={handleOpenDetailModal}
+              onSendToService={handleSendToService}
+              onReturnFromService={handleReturnFromService}
             />
           )}
 
@@ -1018,6 +1204,17 @@ export const App: React.FC = () => {
               onDeleteMotor={handleDeleteMotor}
               onAddPhysicalUnit={handleAddPhysicalUnit}
               onApplyBulkPriceAdjustment={handleApplyBulkPriceAdjustment}
+            />
+          )}
+
+          {activeTab === 'reports' && (
+            <MonthlyReportView
+              db={db}
+              activeUser={activeUser}
+              onNavigateBooking={b => {
+                handleOpenDetailModal(b, 'detail');
+              }}
+              onNavigateTab={tab => setActiveTab(tab as ActiveNavTab)}
             />
           )}
 
@@ -1162,6 +1359,31 @@ export const App: React.FC = () => {
           booking={selectedReceiptBooking}
           db={db}
           onClose={() => setSelectedReceiptBooking(null)}
+          onOpenQuickShare={b => {
+            const defaultShareTab: QuickShareTab =
+              b.status === 'ryokou_selesai'
+                ? 'thankyou'
+                : b.status === 'ryokou_disewa'
+                ? 'reminder'
+                : 'confirmation';
+            handleOpenDetailModal(b, 'quick_share', defaultShareTab);
+          }}
+        />
+      )}
+
+      {/* 10. Booking Detail Modal & Quick Share WhatsApp */}
+      {selectedDetailBooking && (
+        <BookingDetailModal
+          booking={selectedDetailBooking.booking}
+          db={db}
+          initialTab={selectedDetailBooking.initialTab}
+          initialQuickShareTab={selectedDetailBooking.initialShareTab}
+          onClose={() => setSelectedDetailBooking(null)}
+          onOpenReceiptModal={b => setSelectedReceiptBooking(b)}
+          onOpenApproveModal={b => setSelectedApproveBooking(b)}
+          onOpenHandoverModal={b => setSelectedHandoverBooking(b)}
+          onOpenExchangeModal={b => setSelectedExchangeBooking(b)}
+          onOpenFinishModal={b => setSelectedFinishBooking(b)}
         />
       )}
     </div>
