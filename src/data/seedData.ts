@@ -69,7 +69,7 @@ export const DEFAULT_USERS: AppUser[] = [
 ];
 
 export const INITIAL_DATABASE: RyokoDatabase = {
-  version: '3.2.2',
+  version: '3.5.0',
   lastUpdated: new Date().toISOString(),
   settings: {
     adminWhatsapp: '6281234567890',
@@ -86,7 +86,7 @@ export const INITIAL_DATABASE: RyokoDatabase = {
         waktu: '2026-10-24 08:00 WIB',
         user: 'System',
         aktivitas: 'Inisialisasi Database ZLCE',
-        detail: 'Sistem database lokal dimuat dengan standar ZLCE v3.2.2 (Buffer 60 mnt & Tarif 1 Bulan)',
+        detail: 'Sistem database lokal dimuat dengan standar ZLCE v3.3.0 & Aplikasi v3.5.0 (Buffer 60 mnt & Tarif 1 Bulan)',
       },
       {
         id: 'aud-002',

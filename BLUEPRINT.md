@@ -208,3 +208,32 @@ Integrasi WhatsApp diperluas dengan generator template pesan UTF-8 yang jujur (*
    - *Ucapan Terima Kasih*: Apresiasi perjalanan di Malang & Batu, ajakan rating bintang 5 Google Maps, dan voucher diskon repeat order.
 8. **Memo Eksekutif Laporan Bulanan:** Format ringkasan kinerja bulanan dan tingkat okupansi armada untuk pelaporan manajemen.
 9. **Standar Tautan Tanpa Nomor Dummy:** Dilarang keras menyematkan nomor telepon contoh/dummy (`6281234567890`). Bila nomor telepon pelanggan tidak ada, sistem menghasilkan link share teks bersih (`https://api.whatsapp.com/send?text=...`).
+
+---
+
+## 11. BATAS BEKU PWA (KELOMPOK A & KOPLING K1-K6)
+
+Untuk menjamin kestabilan Progressive Web App (PWA) RyokoRent selama restrukturisasi metodologi ZLCE (Mode Simple), ditetapkan batasan beku dan inventarisasi kopling kritis:
+
+### 11.1 Baseline Verifikasi PWA (Status Awal TASK-030)
+- **TypeScript & Linting:** `npm run lint` (`tsc --noEmit`) $\rightarrow$ 0 error.
+- **Produksi & Bundle Vite:** `npm run build` $\rightarrow$ Sukses, menghasilkan `dist/sw.js` dan Web App Manifest.
+- **Validator Status Proyek:** `python3 scripts/zlce/zlce-check.py . --no-git` $\rightarrow$ `RESULT: OK (0 error, 0 warn)`.
+
+### 11.2 Daftar Berkas Beku PWA (Kelompok A)
+Dilarang memodifikasi berkas berikut kecuali tercantum secara eksplisit dalam task yang telah disetujui:
+1. **Kode Aplikasi (`src/**`):** Seluruh komponen (`src/components/*`), layanan (`src/services/*`), utilitas (`src/utils/*` termasuk `clipboard.ts`), data seed (`src/data/*`), dan entry point (`src/App.tsx`, `src/main.tsx`). *Pengecualian:* Hanya 4 berkas ZLCE Studio (`RecoveryTab.tsx`, `zlceValidator.ts`, `markdownParser.ts`, `src/types/zlce.ts`) yang dapat diselaraskan pada TASK-038.
+2. **Build, Runtime & Shell:** `index.html`, `vite.config.ts`, `tsconfig.json`, `.env.example`, `.gitignore`, `metadata.json`. Berkas `package.json` hanya diizinkan penambahan satu baris `scripts.test` untuk menjalankan runner tsx (TASK-031).
+3. **Aset Statis & PWA (`public/**`):** Ikon aplikasi (`pwa-*.png`, `apple-touch-icon.png`, `icon.svg`, `favicon.ico`). *Pengecualian:* Penghapusan dokumen review markdown dari `public/` (TASK-032).
+4. **Dokumentasi Produk:** `README.md`, `LICENSE`, `docs/GOOGLE_SHEETS_INTEGRATION.md`, `docs/TELEGRAM_BOT_INTEGRATION.md`.
+
+### 11.3 Enam Titik Kopling Kritis yang Wajib Dijaga (K1 - K6)
+| # | Kopling Kritis | Lokasi / Bukti | Konsekuensi & Aturan Pencegahan |
+| :-: | :--- | :--- | :--- |
+| **K1** | Impor Statis Session State | `src/App.tsx`: `import sessionStateActual from '../SESSION_STATE.md?raw'` | `SESSION_STATE.md` **wajib tetap berada di root proyek** dengan penamaan yang sama persis. Pemindahan atau penggantian nama akan menggagalkan `vite build`. |
+| **K2** | Parser State Machine Dokumen | `markdownParser.ts`, `zlceValidator.ts`, `zlce-check.py` | Format judul, nomor seksi (0 s/d 7), nama field, dan kolom tabel di `SESSION_STATE.md` **tidak boleh diubah**. |
+| **K3** | Eksekusi Skrip Snapshot & Check | `RecoveryTab.tsx` mengeksekusi path `scripts/zlce/zlce-snapshot.sh` dan `scripts/zlce/zlce-check.py` | Direktori `scripts/zlce/` **tidak boleh dipindah atau diganti nama**. |
+| **K4** | Tautan Dokumentasi Google Sheets | `SettingsView.tsx` merender teks path `docs/GOOGLE_SHEETS_INTEGRATION.md` | Berkas `docs/GOOGLE_SHEETS_INTEGRATION.md` **dipertahankan utuh di lokasinya**. |
+| **K5** | Helper Papan Klip Bersama | `src/utils/clipboard.ts` digunakan oleh 6 komponen (5 komponen PWA + RecoveryTab) | `clipboard.ts` adalah milik PWA dan masuk dalam daftar beku Kelompok A. |
+| **K6** | Ketentuan Operasional Rental | `docs/USAGE.md` Bagian 6 memuat aturan operasional rental (katalog tarif F-03, jam WIB, denda, WhatsApp) | Sebelum `docs/USAGE.md` dihapus, seluruh isi Bagian 6 **wajib diselamatkan ke `README.md`**. |
+

@@ -1,17 +1,6 @@
 /**
- * Type definitions for Zero-Loss Context Engineering (ZLCE) Studio v3.2.2
+ * Type definitions for Zero-Loss Context Engineering (ZLCE) Studio v3.3.0
  */
-
-export type TabType = 
-  | 'session' 
-  | 'initiation' 
-  | 'prompt-engine' 
-  | 'runtime-engine' 
-  | 'recovery' 
-  | 'triage' 
-  | 'harness' 
-  | 'templates' 
-  | 'tutorial';
 
 export type TaskStatus = 'PENDING' | 'READY' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE';
 

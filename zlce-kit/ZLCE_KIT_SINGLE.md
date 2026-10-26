@@ -1,6 +1,6 @@
-# ZLCE KIT (SATU BERKAS) v3.2.2
+# ZLCE KIT (SATU BERKAS) v3.3.0
 
-Berkas ini adalah bundel tunggal (*monolithic bundle*) resmi Zero-Loss Context Engineering (ZLCE) v3.2.2.
+Berkas ini adalah bundel tunggal (*monolithic bundle*) resmi Zero-Loss Context Engineering (ZLCE) v3.3.0.
 Tujuan Utama: Memungkinkan pemakaian ZLCE pada AI berbasis chat/web prompt tunggal (seperti ChatGPT, Claude Web, atau IDE prompt) yang tidak mendukung upload direktori folder sekaligus.
 
 Setiap berkas di dalamnya dibatasi penanda:
@@ -8,22 +8,19 @@ Setiap berkas di dalamnya dibatasi penanda:
 Perlakukan tiap bagian sebagai berkas terpisah dengan path tersebut.
 
 💡 PRINSIP ARSITEKTUR DISTRIBUSI TEMPLATE:
-Kit ZLCE sengaja didistribusikan dalam 3 wujud fungsional:
-1. `templates/*.md`: Berkas fisik terpisah untuk repositori Git & IDE AI modular (Cursor, Windsurf, VS Code).
-2. `ZLCE_KIT_SINGLE.md`: Bundel tunggal mandiri ini untuk AI berbasis prompt tunggal tanpa multi-upload.
-3. `src/data/templates.ts`: Runtime cache internal untuk aplikasi web ZLCE Studio di sisi browser.
+Kit ZLCE didistribusikan dalam wujud fungsional:
+1. `zlce-kit/templates/*.md`: Berkas template modular untuk repositori Git & IDE AI modular.
+2. `zlce-kit/ZLCE_KIT_SINGLE.md`: Bundel tunggal mandiri untuk AI berbasis prompt tunggal.
+3. Tab Recovery ZLCE Studio: Antarmuka pemulihan dan wizard serah terima di sisi klien.
 
 DAFTAR BERKAS:
 - LANDING_PROMPT.md
-- HANDOVER_PROMPT.md
+- HANDOVER.md
 - templates/AI_WORKFLOW.template.md
 - templates/BLUEPRINT.template.md
-- templates/ARCHITECTURE.template.md
-- templates/DATA_MODEL.template.md
+- templates/FULL_MODE.template.md
 - templates/TASKS.template.md
 - templates/SESSION_STATE.template.md
-- templates/TESTING.template.md
-- templates/CHECKLISTS.template.md
 - templates/CHANGELOG.template.md
 - templates/profiles/DOMAIN_BOOKING.profile.md
 
@@ -33,9 +30,9 @@ DAFTAR BERKAS:
 Hanya untuk **awal proyek** (atau restrukturisasi). Pindah sesi/AI di tengah proyek, termasuk sesi terputus: gunakan `HANDOVER_PROMPT.md`.
 
 ## CARA PAKAI
-1. Buka sesi AI. **Lampirkan** seluruh `templates/` (+ profil domain bila ada) dan, bila AI mampu menyimpan berkas, `scripts/`. Tanpa dukungan lampiran: tempel template, atau andalkan Skeleton Fallback (Bagian 6).
+1. Buka sesi AI. **Lampirkan** seluruh `templates/` (+ profil domain bila ada) dan, bila AI mampu menyimpan/menjalankan berkas, folder `scripts/` (opsional: bila terminal/skrip tidak tersedia, gunakan validasi visual di ZLCE Studio atau pemeriksaan logis manual). Tanpa dukungan lampiran: tempel template, atau andalkan Skeleton Fallback (Bagian 6).
 2. Isi semua `[PLACEHOLDER]` di Bagian 1, salin seluruh blok, tempel ke AI.
-3. Simpan setiap berkas yang dihasilkan ke repositori. Salin `scripts/` ke `scripts/zlce/` di repositori.
+3. Simpan setiap berkas yang dihasilkan ke repositori. Bila menggunakan skrip pembantu, salin `scripts/` ke `scripts/zlce/` di repositori.
 
 ---
 
@@ -48,9 +45,9 @@ Metodologi: Zero-Loss Context Engineering (ZLCE): berkas kontrol, task atomik, b
 ## 1. PARAMETER PROYEK (INPUT PENGGUNA)
 - Nama Proyek: [NAMA]
 - Aksi: [BARU | RESTRUKTURISASI proyek existing]
-- MODE: [FULL | LITE]
-  - FULL: 10 berkas kontrol (Bagian 3).
-  - LITE: `BLUEPRINT.md`, `TASKS.md`, `SESSION_STATE.md`, `HANDOVER.md`; aturan global Bagian 2 tetap berlaku (proyek < ~15 task). Model data di `BLUEPRINT.md` bagian 7, strategi uji di bagian 8; `Docs Impact` hanya merujuk dokumen yang ada; `Test Case` merujuk nama test, bukan ID `TC-xx`.
+- MODE: [LITE (Rekomendasi Default) | FULL]
+  - LITE (Default, proyek < ~15 task / 1-2 modul): 4 berkas kontrol (`BLUEPRINT.md`, `TASKS.md`, `SESSION_STATE.md`, `HANDOVER.md`); aturan global Bagian 2 tetap berlaku penuh. Model data di `BLUEPRINT.md` bagian 7, strategi uji di bagian 8; `Docs Impact` hanya merujuk dokumen yang ada; `Test Case` merujuk nama test, bukan ID `TC-xx`.
+  - FULL (Proyek besar > 15 task / multi-service): 10 berkas kontrol lengkap bertahap melalui 4 Gerbang Persetujuan (Bagian 3).
 - Domain / Industri: [CONTOH: Logistik / Rental Kendaraan / FinTech]
 - Profil Domain (opsional): [booking | none]
 - Sasaran: [CONTOH: Web App, API, Admin Dashboard]
@@ -68,7 +65,9 @@ Metodologi: Zero-Loss Context Engineering (ZLCE): berkas kontrol, task atomik, b
 
 R1. **Sumber Kebenaran Tunggal:** status task hanya di `SESSION_STATE.md`. Berkas lain menunjuk, tidak menduplikasi.
 R2. **Pembacaan Bertingkat:** Tier 0 (tiap sesi): `SESSION_STATE.md` + entri task aktif di `TASKS.md`. Tier 1 (per task): `Docs Terkait` + kode yang diubah. Tier 2: sisanya bila perlu.
-R3. **Anti-Halusinasi:** informasi di luar berkas/lampiran = tidak diketahui. Catat `ASM-xx`/`Q-xx` di `SESSION_STATE.md` dan tanyakan. Verifikasi versi/API library sebelum dipakai. Dilarang mengarang output perintah, hasil test, atau isi berkas yang belum dibaca. Penomoran `ASM`/`Q`: satu urutan bersama, ID berikutnya = nomor tertinggi di bagian 4 + 1, dilarang memakai ulang. Dilarang mengarang jam: jam HANYA boleh berasal persis dari pesan pengguna, sistem, atau snapshot. Tanpa sumber jam baru, WAJIB tulis tanggal saja dan 'jam: ?' (contoh: '2026-10-14 jam: ?' atau gunakan jam eksis dari fixture bila mempertahankan state). DILARANG mengekstrapolasi/mengarang jam sintetis (seperti +5 atau +10 menit).
+R3. **Anti-Halusinasi:** informasi di luar berkas/lampiran = tidak diketahui. Dilarang mengarang output perintah, hasil test, atau isi berkas yang belum dibaca. Catat hal yang belum jelas sebagai `ASM-xx`/`Q-xx` di `SESSION_STATE.md` bagian 4 dan tanyakan kepada pengguna. Verifikasi versi/API pustaka sebelum dipakai.
+R3a. **Penomoran Bersama ASM & Q:** penomoran `ASM` dan `Q` dalam satu urutan bersama; ID berikutnya = nomor angka tertinggi di bagian 4 + 1. Dilarang memakai ulang ID yang sudah selesai/dijawab.
+R3b. **Aturan Jam Anti-Ekstrapolasi:** jam HANYA boleh berasal persis dari pesan pengguna, sistem, atau snapshot. Tanpa sumber jam baru yang eksplisit, WAJIB tulis tanggal saja dan 'jam: ?' (contoh: '2026-10-14 jam: ?' atau gunakan jam eksis dari fixture bila mempertahankan state). DILARANG mengekstrapolasi/mengarang jam sintetis (seperti +5 atau +10 menit).
 R4. **Single Task:** satu task `IN_PROGRESS` pada satu waktu.
 R5. **Verifikasi Berbukti:** `DONE` hanya bila semua Acceptance Criteria terpenuhi, kolom Bukti Verifikasi terisi (output perintah/log test/pengamatan konkret), dan `Disetujui: ya`. AI tanpa eksekusi: berikan perintah persis, pengguna menempel output, status tetap `IN_PROGRESS` sampai bukti masuk.
 R6. **Sinkronisasi Dokumen:** tiap task mendeklarasikan `Docs Impact`; dokumen terdampak diperbarui dalam task yang sama sebelum `DONE`.
@@ -77,7 +76,7 @@ R8. **Keamanan:** input tervalidasi tipe ketat; output di-escape sesuai konteks;
 R9. **Gaya:** dokumentasi teknis murni, ringkas, bullet/tabel, tanpa narasi.
 R10. **Template Tidak Ada:** jangan menebak struktur. Minta lampiran atau gunakan Skeleton Fallback (Bagian 6) dan nyatakan penggunaannya.
 R11. **Enum Status Tunggal:** `PENDING | READY | IN_PROGRESS | BLOCKED | DONE`.
-R12. **Checkpoint & WAL (anti sesi terputus):** sebelum langkah multi-berkas, isi WAL (`SESSION_STATE.md` bagian 3); setelah langkah utuh, commit `wip(<lingkup>): <langkah> [TASK-XXX]` dan perbarui WAL. Sejak `SESSION_STATE.md` ada (Gerbang 4) dan tanpa akses tulis berkas: cetak CHECKPOINT BLOCK (format di `AI_WORKFLOW.md` bagian 8) di akhir setiap respons yang mengubah state. Sebelum Gerbang 4 tidak ada state dan tidak ada checkpoint. Jalankan `scripts/zlce/zlce-check.py` setelah memperbarui state dan sebelum `DONE`.
+R12. **Checkpoint & WAL (anti sesi terputus):** sebelum langkah multi-berkas, isi WAL (`SESSION_STATE.md` bagian 3); setelah langkah utuh, commit `wip(<lingkup>): <langkah> [TASK-XXX]` dan perbarui WAL. Sejak `SESSION_STATE.md` ada (Gerbang 4) dan tanpa akses tulis berkas: cetak CHECKPOINT BLOCK (format di `AI_WORKFLOW.md` bagian 8) di akhir setiap respons yang mengubah state. Sebelum Gerbang 4 tidak ada state dan tidak ada checkpoint. Jalankan `scripts/zlce/zlce-check.py` (bila skrip tersedia; bila tidak, lakukan validasi di ZLCE Studio atau pemeriksaan logis manual) setelah memperbarui state dan sebelum `DONE`.
 R13. **Pemulihan:** sesi baru yang menemukan WAL berisi task menjalankan prosedur RECOVERY (`AI_WORKFLOW.md` bagian 9, `HANDOVER.md`). Dilarang membatalkan perubahan tanpa persetujuan.
 
 ---
@@ -128,19 +127,40 @@ Pindah sesi/AI di tengah proyek, termasuk sesi terputus, memakai prompt paten `H
 ```
 <<<END FILE>>>
 
-<<<FILE: HANDOVER_PROMPT.md>>>
-# HANDOVER PROMPT v3.2.2 (PATEN): PINDAH SESI / PINDAH AI DI TENGAH PROYEK
+<<<FILE: HANDOVER.md>>>
+# PANDUAN SERAH TERIMA & PROMPT PEMULIHAN SESI (HANDOVER.md) v3.2.2
 
-Prompt ini tetap: tidak diubah antar-sesi, antar-AI, antar-proyek. Semua status ada di `SESSION_STATE.md`. Cocok untuk tiga situasi: (1) pindah sesi secara terencana, (2) pindah ke AI lain, (3) **sesi terputus** (mode RECOVERY terdeteksi otomatis dari WAL).
+Dokumen ini merupakan panduan operasional serah terima sesi dan pemulihan konteks (Zero-Loss Context Engineering / ZLCE). Dokumen ini menggabungkan panduan cara kerja serah terima dan blok prompt pemulihan sesi yang paten dan siap disalin ke AI baru.
 
-Salin juga isi blok ini ke repositori sebagai `HANDOVER.md` (verbatim) agar ikut terbawa.
-
-## CARA PAKAI
-1. Buka sesi/AI baru. Lampirkan: `SESSION_STATE.md`, `TASKS.md`, `AI_WORKFLOW.md`. Tambahkan berkas lain bila diminta.
-2. Bila sesi sebelumnya putus: jalankan `bash scripts/zlce/zlce-snapshot.sh --diff` di root proyek dan lampirkan outputnya. Bila AI sebelumnya sempat mencetak CHECKPOINT BLOCK yang belum Anda simpan, simpan dulu ke `SESSION_STATE.md`.
-3. Tempel blok di bawah apa adanya. Isi slot `[REVISI]` hanya bila ada revisi.
+Prompt ini bersifat tetap: tidak diubah antar-sesi, antar-AI, atau antar-proyek. Seluruh status dinamis dikelola melalui `SESSION_STATE.md`. Berkas ini cocok untuk tiga situasi utama:
+1. **Pindah sesi secara terencana:** Saat batas konteks token mendekati ambang atau pergantian giliran kerja.
+2. **Pindah ke platform AI lain:** Transisi antar-model atau lingkungan pengembangan AI yang berbeda.
+3. **Sesi terputus (Recovery):** Pemulihan crash, pemutusan koneksi, atau timeout (mode RECOVERY terdeteksi otomatis dari Write-Ahead Log / WAL di Bagian 3 `SESSION_STATE.md`).
 
 ---
+
+## CARA PENGGUNAAN
+
+1. **Buka sesi atau agen AI baru:**
+   Lampirkan berkas kontrol inti:
+   - `SESSION_STATE.md` (status aktif, WAL, dan log audit)
+   - `TASKS.md` (daftar rincian seluruh task)
+   - `AI_WORKFLOW.md` (aturan kerja, triase revisi, dan protokol recovery)
+   *(Catatan: Pada ZLCE Studio / UI APK, Anda dapat menekan tombol **'Salin Bundel Handover (All-in-One)'** di tab Recovery untuk menyalin prompt, state aktif, dan snapshot git sekaligus).*
+
+2. **Bila sesi sebelumnya terputus:**
+   Jalankan perintah snapshot pada terminal repositori:
+   ```bash
+   bash scripts/zlce/zlce-snapshot.sh --diff
+   ```
+   *(atau gunakan generator snapshot di tab Recovery ZLCE Studio)* dan lampirkan outputnya ke sesi baru. Bila AI sebelumnya sempat mencetak CHECKPOINT BLOCK yang belum tersimpan, pastikan isi tersebut sudah disimpan ke `SESSION_STATE.md`.
+
+3. **Tempel blok prompt:**
+   Salin seluruh isi blok di bawah ini (dari `### C - CONTEXT` hingga akhir blok) apa adanya ke obrolan AI baru. Isi slot `[REVISI / UPDATE / PERUBAHAN DI LUAR RENCANA]` hanya jika terdapat instruksi baru dari pengguna di luar rencana yang sedang berjalan.
+
+---
+
+## BLOK PROMPT SERAH TERIMA & PEMULIHAN (SIAP SALIN)
 
 ```markdown
 ### C - CONTEXT
@@ -448,14 +468,16 @@ Salin ke `SESSION_STATE.md` bagian 3 sebagai `ASM-xx` / `Q-xx`. Tidak boleh ada 
 * Tipe uji, perintah menjalankan, kasus batas wajib, kriteria lulus.
 <<<END FILE>>>
 
-<<<FILE: templates/ARCHITECTURE.template.md>>>
-# SPESIFIKASI ARSITEKTUR SISTEM: [NAMA_PROYEK]
+<<<FILE: templates/FULL_MODE.template.md>>>
+# TEMPLATE MODE PENUH (FULL_MODE.template.md): [NAMA_PROYEK]
 
-Arsitektur, layer, pohon direktori, ADR. Diperbarui bila task dengan `Docs Impact: ARCHITECTURE` selesai.
+Dokumen template gabungan untuk proyek berskala penuh (MODE: FULL). Menggabungkan spesifikasi Arsitektur, Skema Data, Pengujian QA, dan Quality Gate dalam satu kerangka terpadu untuk efisiensi distribusi ZLCE.
 
 ---
 
-## 1. POLA & LAYER
+## 1. SPESIFIKASI ARSITEKTUR SISTEM
+
+### 1.1 Pola & Layer
 
 ```text
 PRESENTATION   UI, views, client assets
@@ -469,9 +491,7 @@ INFRASTRUCTURE DB, cache, API/webhook eksternal
 
 Aturan dependensi: panah hanya ke bawah. Layer bawah tidak mengimpor layer atas. Tidak ada circular dependency antar modul.
 
----
-
-## 2. POHON DIREKTORI
+### 1.2 Pohon Direktori
 
 ```text
 [project-root]/
@@ -490,65 +510,103 @@ Aturan dependensi: panah hanya ke bawah. Layer bawah tidak mengimpor layer atas.
 ├── CHECKLISTS.md  HANDOVER.md  CHANGELOG.md
 ```
 
----
+### 1.3 Architecture Decision Records (ADR)
 
-## 3. ADR
-
-### ADR-001: [Judul]
+#### ADR-001: [Judul Keputusan]
 * **Status:** [Proposed | Accepted | Superseded by ADR-xxx]
-* **Konteks:** [..]
-* **Keputusan:** [..]
-* **Konsekuensi (+):** [..]
-* **Konsekuensi (-) / Mitigasi:** [..]
+* **Konteks:** [Latar belakang masalah atau kebutuhan arsitektural]
+* **Keputusan:** [Pilihan arsitektur / teknologi yang diambil]
+* **Konsekuensi (+):** [Keuntungan yang diperoleh]
+* **Konsekuensi (-) / Mitigasi:** [Biaya/kompromi dan langkah mitigasi]
 
-### ADR-002: Otentikasi & RBAC
+#### ADR-002: Otentikasi & RBAC
 * **Status:** Proposed
-* **Konteks:** Peran pengguna [Admin, Operator, Customer].
-* **Keputusan:** [metode, mis. session + capability / JWT + role claim]
-* **Konsekuensi (+):** batas wewenang terisolasi.
-* **Konsekuensi (-) / Mitigasi:** guard wajib di semua rute; diuji via test otorisasi.
-<<<END FILE>>>
-
-<<<FILE: templates/DATA_MODEL.template.md>>>
-# SPESIFIKASI SKEMA DATA & MODEL RELASI: [NAMA_PROYEK]
-
-Skema entitas, indeks, relasi, state machine, formula. Diperbarui bila task dengan `Docs Impact: DATA_MODEL` selesai.
+* **Konteks:** Peran pengguna multi-tingkat [Admin, Operator, User].
+* **Keputusan:** Pemisahan wewenang berbasis peran dan capability token/session.
+* **Konsekuensi (+):** Batas wewenang terisolasi dan audit trail jelas.
+* **Konsekuensi (-) / Mitigasi:** Guard wajib pada setiap rute/aksi; diuji via automated security test.
 
 ---
 
-## 1. ENTITAS
+## 2. SPESIFIKASI SKEMA DATA & MODEL RELASI
 
-### Entitas: `[nama_entitas]`
+### 2.1 Entitas
+
+#### Entitas: `[nama_entitas]`
 * **Tabel:** `[table_name]`
 * **Atribut:**
 
 | Kolom | Tipe | Constraint | Keterangan |
 | :--- | :--- | :--- | :--- |
-| `id` | INT/UUID | PK | |
-| `[kolom]` | [tipe] | [NOT NULL / UNIQUE / FK -> tabel.kolom] | [..] |
-| `created_at` | TIMESTAMP | DEFAULT NOW | |
-| `updated_at` | TIMESTAMP | ON UPDATE NOW | |
+| `id` | INT/UUID | PK | Primary Key |
+| `[kolom]` | [tipe] | [NOT NULL / UNIQUE / FK -> tabel.kolom] | [Keterangan field] |
+| `created_at` | TIMESTAMP | DEFAULT NOW | Waktu dibuat |
+| `updated_at` | TIMESTAMP | ON UPDATE NOW | Waktu diperbarui |
 
-* **Indeks:** [daftar indeks + alasan]
-* **Relasi:** [kardinalitas, perilaku ON DELETE]
+* **Indeks:** [daftar indeks + alasan optimasi query]
+* **Relasi:** [kardinalitas (1:1, 1:N, N:M), perilaku ON DELETE]
 
----
-
-## 2. STATE MACHINE
+### 2.2 State Machine
 
 Entitas: `[nama_entitas.kolom_status]`
 
 | Dari | Ke | Pemicu | Guard (syarat) |
 | :--- | :--- | :--- | :--- |
-| [state] | [state] | [event] | [kondisi] |
+| [state] | [state] | [event] | [kondisi validasi] |
 
-Transisi di luar tabel = ilegal (wajib menolak dengan exception/error terdefinisi).
+*Transisi di luar tabel = ilegal (wajib ditolak dengan exception/error terdefinisi).*
+
+### 2.3 Formula Bisnis
+
+1. `[Nama Formula]`: [rumus matematis + aturan pembulatan + satuan baku]
 
 ---
 
-## 3. FORMULA BISNIS
+## 3. SPESIFIKASI PENGUJIAN & MATRIKS QA
 
-1. `[Nama Formula]`: [rumus + aturan pembulatan + satuan]
+### 3.1 Atribut Kualitas Kritis
+
+1. **Integritas transaksional:** Tidak ada dirty read, race condition, atau tabrakan paralel.
+2. **Keamanan:** Sanitasi input menolak injeksi (SQL/XSS); verifikasi peran ketat pada tiap endpoint.
+3. **Ketepatan kalkulasi:** Formula tarif, denda, atau bunga dengan presisi desimal tepat tanpa pembulatan liar.
+
+### 3.2 Matriks Test Case
+
+| ID | Task Terkait | Modul | Skenario | Masukan | Ekspektasi | Hasil Terakhir |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `TC-01` | TASK-xxx | Auth | Bypass otorisasi | Request tanpa token/sesi valid | 401/403 Ditolak | - |
+| `TC-02` | TASK-xxx | Input | XSS pada field teks | `<script>alert(1)</script>` | Di-escape/sanitasi | - |
+
+### 3.3 Kondisi Batas
+
+1. **Nilai ekstrem:** Nol, nilai negatif, nilai melebihi batas maksimum tipe data.
+2. **Panjang karakter:** Batas input string (mis. nama, alamat, nomor telepon).
+3. **Konkurensi & Zona Waktu:** Beban request simultan dan konsistensi zona waktu (mis. WIB / UTC).
+
+---
+
+## 4. QUALITY GATE & CHECKLISTS
+
+### 4.1 Pre-Merge Checklist
+
+- [ ] **Arsitektur:** Tidak ada circular dependency; mematuhi batas layer.
+- [ ] **Masukan & Keamanan:** Semua input tervalidasi tipe, panjang, dan disanitasi.
+- [ ] **Kueri / Akses Data:** 100% aman (terparameter / ORM type-safe).
+- [ ] **State Machine:** Transisi status hanya melalui alur yang diizinkan matriks.
+- [ ] **Lint & Tipe:** Linter dan type checker 0 error (`npm run lint` / `tsc`).
+- [ ] **Test:** Seluruh test suite lolos 100% (`npm run test`).
+- [ ] **Sinkronisasi dokumen:** Seluruh dokumen pada `Docs Impact` diperbarui.
+- [ ] **Bukti & Persetujuan:** Kolom Bukti Verifikasi dan `Disetujui: ya` terisi di `SESSION_STATE.md`.
+- [ ] **Validator ZLCE:** `python3 scripts/zlce/zlce-check.py` = 0 error.
+- [ ] **Riwayat Commit:** Commit WIP di-squash atau dirapikan sebelum merge ke branch utama.
+
+### 4.2 Pre-Production Checklist
+
+- [ ] **Isolasi Lingkungan:** Konfigurasi `.env` produksi terpisah dan aman dari repositori publik.
+- [ ] **Mode Debug Nonaktif:** `APP_DEBUG` = false atau flag staging dinonaktifkan.
+- [ ] **HTTPS & Security Headers:** TLS aktif; HSTS, X-Content-Type-Options, CSP terpasang.
+- [ ] **Cadangan & Pemulihan:** Mekanisme snapshot dan backup database otomatis teruji.
+- [ ] **Smoke Test E2E:** Seluruh alur kritis lulus uji tanpa unhandled exceptions atau 500 error.
 <<<END FILE>>>
 
 <<<FILE: templates/TASKS.template.md>>>
@@ -692,68 +750,6 @@ Konteks yang belum tertulis di berkas lain: keputusan penting, jebakan yang dite
 ## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
 
 * **[YYYY-MM-DD (HH:MM TZ | jam: ?)]:** [peristiwa singkat + referensi task/commit]
-<<<END FILE>>>
-
-<<<FILE: templates/TESTING.template.md>>>
-# SPESIFIKASI PENGUJIAN & MATRIKS QA: [NAMA_PROYEK]
-
-Skenario uji, kondisi batas, dan keterlacakan ke task. Diperbarui bila task dengan `Docs Impact: TESTING` selesai.
-
----
-
-## 1. ATRIBUT KUALITAS KRITIS
-
-1. **Integritas transaksional:** tidak ada dirty read atau konflik paralel.
-2. **Keamanan:** input menolak injection; endpoint memverifikasi sesi/peran (RBAC).
-3. **Ketepatan kalkulasi:** formula presisi desimal tepat.
-
----
-
-## 2. MATRIKS TEST CASE
-
-| ID | Task Terkait | Modul | Skenario | Masukan | Ekspektasi | Hasil Terakhir |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `TC-01` | TASK-xxx | Auth | Bypass otorisasi | Request tanpa token/sesi | 401/403 | - |
-| `TC-02` | TASK-xxx | Input | XSS pada field teks | `<script>alert(1)</script>` | Di-escape/ditolak | - |
-
----
-
-## 3. KONDISI BATAS
-
-1. Nilai ekstrem: nol, negatif, maksimum tipe data.
-2. Panjang string: batas default 255 karakter.
-3. Beban simultan & zona waktu.
-<<<END FILE>>>
-
-<<<FILE: templates/CHECKLISTS.template.md>>>
-# QUALITY GATE: [NAMA_PROYEK]
-
-Centang `[x]` hanya dengan bukti (output/log). Jangan mencentang dari asumsi.
-
----
-
-## 1. PRE-MERGE
-
-- [ ] **Arsitektur:** tidak ada circular dependency; mematuhi layer `ARCHITECTURE.md`.
-- [ ] **Masukan & Keamanan:** semua input tervalidasi tipe dan disanitasi.
-- [ ] **Kueri:** 100% terparameter.
-- [ ] **State machine:** transisi mematuhi `DATA_MODEL.md`.
-- [ ] **Lint & Tipe:** linter dan type checker 0 error.
-- [ ] **Test:** test case terkait task PASS.
-- [ ] **Sinkronisasi dokumen:** semua dokumen `Docs Impact` diperbarui.
-- [ ] **Bukti & persetujuan:** Bukti Verifikasi dan `Disetujui` terisi.
-- [ ] **Validator:** `python3 scripts/zlce/zlce-check.py` = 0 error.
-- [ ] **Riwayat commit:** commit `wip` di-squash sebelum merge ke `main`.
-
----
-
-## 2. PRE-PRODUCTION
-
-- [ ] **Isolasi environment:** `.env` produksi terpisah.
-- [ ] **Debug nonaktif:** `APP_DEBUG` = false.
-- [ ] **HTTPS & header:** TLS aktif; HSTS, X-Content-Type-Options terpasang.
-- [ ] **Backup & restore:** backup otomatis harian teruji.
-- [ ] **Smoke test E2E:** alur utama tanpa HTTP 500.
 <<<END FILE>>>
 
 <<<FILE: templates/CHANGELOG.template.md>>>

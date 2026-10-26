@@ -1,3 +1,38 @@
+# PANDUAN SERAH TERIMA & PROMPT PEMULIHAN SESI (HANDOVER.md) v3.2.2
+
+Dokumen ini merupakan panduan operasional serah terima sesi dan pemulihan konteks (Zero-Loss Context Engineering / ZLCE). Dokumen ini menggabungkan panduan cara kerja serah terima dan blok prompt pemulihan sesi yang paten dan siap disalin ke AI baru.
+
+Prompt ini bersifat tetap: tidak diubah antar-sesi, antar-AI, atau antar-proyek. Seluruh status dinamis dikelola melalui `SESSION_STATE.md`. Berkas ini cocok untuk tiga situasi utama:
+1. **Pindah sesi secara terencana:** Saat batas konteks token mendekati ambang atau pergantian giliran kerja.
+2. **Pindah ke platform AI lain:** Transisi antar-model atau lingkungan pengembangan AI yang berbeda.
+3. **Sesi terputus (Recovery):** Pemulihan crash, pemutusan koneksi, atau timeout (mode RECOVERY terdeteksi otomatis dari Write-Ahead Log / WAL di Bagian 3 `SESSION_STATE.md`).
+
+---
+
+## CARA PENGGUNAAN
+
+1. **Buka sesi atau agen AI baru:**
+   Lampirkan berkas kontrol inti:
+   - `SESSION_STATE.md` (status aktif, WAL, dan log audit)
+   - `TASKS.md` (daftar rincian seluruh task)
+   - `AI_WORKFLOW.md` (aturan kerja, triase revisi, dan protokol recovery)
+   *(Catatan: Pada ZLCE Studio / UI APK, Anda dapat menekan tombol **'Salin Bundel Handover (All-in-One)'** di tab Recovery untuk menyalin prompt, state aktif, dan snapshot git sekaligus).*
+
+2. **Bila sesi sebelumnya terputus:**
+   Jalankan perintah snapshot pada terminal repositori:
+   ```bash
+   bash scripts/zlce/zlce-snapshot.sh --diff
+   ```
+   *(atau gunakan generator snapshot di tab Recovery ZLCE Studio)* dan lampirkan outputnya ke sesi baru. Bila AI sebelumnya sempat mencetak CHECKPOINT BLOCK yang belum tersimpan, pastikan isi tersebut sudah disimpan ke `SESSION_STATE.md`.
+
+3. **Tempel blok prompt:**
+   Salin seluruh isi blok di bawah ini (dari `### C - CONTEXT` hingga akhir blok) apa adanya ke obrolan AI baru. Isi slot `[REVISI / UPDATE / PERUBAHAN DI LUAR RENCANA]` hanya jika terdapat instruksi baru dari pengguna di luar rencana yang sedang berjalan.
+
+---
+
+## BLOK PROMPT SERAH TERIMA & PEMULIHAN (SIAP SALIN)
+
+```markdown
 ### C - CONTEXT
 Anda melanjutkan proyek yang dikelola dengan metodologi ZLCE. Anda BUKAN agen pertama dan tidak punya ingatan sesi sebelumnya. Seluruh status ada di berkas kontrol. Sumber kebenaran status: `SESSION_STATE.md`; aturan kerja: `AI_WORKFLOW.md` (otoritatif bila prompt ini bertentangan).
 Jika `SESSION_STATE.md` atau `TASKS.md` tidak terlampir: MINTA dan berhenti. Jangan menebak status.
@@ -44,7 +79,12 @@ LANGKAH 4 - EKSEKUSI
 - Gaya: bahasa teknis murni, ringkas, bullet/tabel.
 
 ### I - INPUT / OUTPUT
-- Masukan yang diberikan pengguna:
-  - `[REVISI]`: (opsional) catatan revisi / instruksi baru dari pengguna.
-- Keluaran yang wajib disajikan di akhir respons jika state berubah (hanya bila tanpa akses tulis berkas langsung):
-  - CHECKPOINT BLOCK lengkap sesuai `AI_WORKFLOW.md` Bagian 8.
+[REVISI / UPDATE / PERUBAHAN DI LUAR RENCANA]:
+(KOSONGKAN BILA TIDAK ADA)
+
+Output wajib sesi ini:
+1. Hasil deteksi mode + konfirmasi status (dan klasifikasi A-D bila RECOVERY) SEBELUM menulis kode.
+2. Implementasi task aktif + bukti verifikasi terhadap Acceptance Criteria.
+3. `SESSION_STATE.md` mutakhir (status, bukti, WAL, Catatan Serah Terima, log), `CHANGELOG.md`, dan dokumen terdampak.
+4. Saat pengguna mengetik `/handover` atau sesi akan berakhir: pastikan state mutakhir dan sajikan `SESSION_STATE.md` lengkap (atau CHECKPOINT terakhir) untuk disimpan. Prompt ini tidak perlu dibuat ulang.
+```

@@ -361,9 +361,9 @@ RESULT: OK (0 error, 0 warn, 6 task)
     setSnapshotText(caseFixtures[caseId]);
   };
 
-  // Generate Handover Prompt based on HANDOVER_PROMPT.md
+  // Generate Handover Prompt based on HANDOVER.md
   const generateHandoverPrompt = () => {
-    return `# UNIVERSAL HANDOVER & RECOVERY PROMPT v3.2.2
+    return `# UNIVERSAL HANDOVER & RECOVERY PROMPT (HANDOVER.md) v3.3.0
 
 Peran: Senior Software Engineer & Context Controller.
 Metodologi: Zero-Loss Context Engineering (ZLCE).
@@ -892,7 +892,7 @@ ${rawMarkdown || '<!-- Gunakan berkas SESSION_STATE.md aktual proyek -->'}
           <div className="px-4 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
             <span className="text-xs font-mono text-slate-300 font-semibold flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              Blok HANDOVER_PROMPT.md Siap Kirim
+              Blok HANDOVER.md Siap Kirim
             </span>
             <button
               onClick={handleCopyHandover}
