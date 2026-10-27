@@ -15,6 +15,13 @@ dan proyek ini menganut [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Pembuatan snapshot cadangan otomatis `ryokourent_snapshot_<timestamp>` sebelum data ditimpa saat proses impor database JSON.
 - Antrean offline sinkronisasi Google Sheets (`offlineSheetsQueue`) dan fungsi `flushOfflineSheetsQueue` untuk retry otomatis webhook saat online.
 - Tab filter dan styling badge status "Dibatalkan" pada `BookingsView.tsx` dan `BookingDetailModal.tsx`.
+- **Restrukturisasi PWA & ZLCE Mode Simple (REV-10)**:
+  - Suite pengujian unit logika bisnis `tests/business-logic.test.ts` dengan runner `npm run test` (tsx) mencakup 7 kasus kritis dan 25 sub-assertion lolos 100%.
+  - Pemulihan dokumen kerja otoritatif `AI_WORKFLOW.md` (12 seksi lengkap: konvensi, triase revisi, checkpoint WAL, alur pemulihan A-D, matriks situasi kerja, dan quality gates).
+  - Penyatuan panduan serah terima dan blok prompt paten ke dalam berkas tunggal `HANDOVER.md`.
+  - Isolasi kit generator proyek baru ke dalam folder `zlce-kit/` dan penggabungan 4 template mode penuh ke `FULL_MODE.template.md`.
+  - Skrip otomatisasi pembundelan `scripts/zlce/zlce-bundle.py` dengan validasi `--check`.
+  - Server produksi Express `server.ts` untuk melayani aset PWA statis dan health check Cloud Run.
 
 ### Diubah
 - **Kepatuhan Tarif Deal Awal (F-03 Revisi P0):** Algoritma `calculateDynamicRentalTariff` pada `bookingEngine.ts` strictly berpegang pada kesepakatan awal pelanggan. Durasi 8 hari pada paket `1_hari` dihitung murni $8 \times \text{tarif harian}$, dan dilarang dikonversi sepihak menjadi 1 minggu + 1 hari.

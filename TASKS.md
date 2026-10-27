@@ -20,7 +20,9 @@ Definisi task. **Status task tidak ditulis di sini**; status ada di `SESSION_STA
 * **FASE 11: Integritas Tarif Deal Awal & State Machine Booking** (`TASK-023`, `TASK-024`)
 * **FASE 12: Keandalan Penyimpanan, Pemulihan Data & Migrasi Skema** (`TASK-025`, `TASK-026`)
 * **FASE 13: Pemisahan Kolom Tanggal/Jam, Parser WA, Integrasi & PWA** (`TASK-027`, `TASK-028`, `TASK-029`)
-* **FASE 14: Restrukturisasi PWA & ZLCE Mode Simple** (`TASK-030`, `TASK-031`, `TASK-032`, `TASK-033`, `TASK-034`, `TASK-035`, `TASK-036`, `TASK-037`, `TASK-038`, `TASK-039`, `TASK-040`)
+* **FASE 14: REV-10 Pelindung PWA & Pemulihan Pengujian** (`TASK-030`, `TASK-031`, `TASK-032`)
+* **FASE 15: REV-10 ZLCE Mode Simple** (`TASK-033`, `TASK-034`, `TASK-035`, `TASK-036`, `TASK-037`, `TASK-038`, `TASK-039`)
+* **FASE 16: REV-10 Sinkronisasi & Verifikasi Akhir** (`TASK-040`)
 
 ---
 
@@ -496,182 +498,179 @@ Definisi task. **Status task tidak ditulis di sini**; status ada di `SESSION_STA
 
 ---
 
-### TASK-030: Baseline & Batas Beku PWA (Butir A1)
+### TASK-030: Baseline & Batas Beku PWA (REV-10 / A1)
 * **Fase:** FASE 14
-* **Deskripsi:** Mendokumentasikan status baseline verifikasi PWA dan batas beku (kopling K1-K6 dan Kelompok A) ke dalam BLUEPRINT.md. Menetapkan aturan bahwa berkas PWA dalam Kelompok A tidak boleh dimodifikasi tanpa izin eksplisit selama restrukturisasi ZLCE.
-* **Dependensi:** `TASK-029`
-* **File:** `BLUEPRINT.md`, `SESSION_STATE.md`
-* **Docs Terkait (Tier 1):** `BLUEPRINT.md`, `src/App.tsx`
+* **Deskripsi:** Mencatat baseline build PWA sebelum perubahan dan menuliskan Batas Beku PWA, kopling K1-K6, serta gerbang G3 ke `BLUEPRINT.md` bagian 11.
+* **Dependensi:** -
+* **File:** `BLUEPRINT.md`
+* **Docs Terkait (Tier 1):** `BLUEPRINT.md`, `src/App.tsx` (baca saja)
 * **Docs Impact:** `BLUEPRINT.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Output baseline lint, build, dan zlce-check terdokumentasi.
-  2. Bagian "Batas Beku PWA" memuat kopling K1-K6 dan daftar beku berkas PWA.
-  3. Tidak ada berkas src/ yang berubah.
-* **Test Case:** Baseline & PWA freeze boundaries check
-* **Metode Verifikasi:** Jalankan `npm run lint`, `npm run build`, dan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. Output baseline `npm ci`, `npm run lint`, `npm run build`, `zlce-check` tertempel di kolom Bukti.
+  2. `BLUEPRINT.md` bagian 11 memuat daftar beku, K1-K6, dan G3.
+  3. Tidak ada berkas `src/`, `public/`, `vite.config.ts`, `package.json` yang berubah.
+* **Test Case:** Baseline build & guard docs
+* **Metode Verifikasi:** Pengguna menjalankan `npm ci && npm run lint && npm run build` dan `python3 scripts/zlce/zlce-check.py . --no-git`, menempel output; `git diff --stat` hanya menampilkan `BLUEPRINT.md`, `TASKS.md`, `SESSION_STATE.md`.
 
 ---
 
-### TASK-031: Pulihkan Suite Pengujian Logika 7 Kasus & Runner tsx (Butir A2)
+### TASK-031: Pulihkan Suite Pengujian Logika PWA (REV-10 / A2)
 * **Fase:** FASE 14
-* **Deskripsi:** Membangun berkas suite pengujian logika mandiri `tests/business-logic.test.ts` berbasis tsx yang mencakup 7 kasus uji kritis: 1) tarif deal harian (8 hari = 8x harian tanpa switch paket), 2) status unit parkir saat pembuatan booking baru, 3) soft cancel status ryokou_dibatalkan, 4) proteksi & cadangan database LocalStorage korup, 5) auto-snapshot sebelum impor restore database, 6) normalizer waktu/jam & tanggal WIB, 7) link WhatsApp jujur tanpa nomor dummy. Menambahkan script `test` pada `package.json`.
+* **Deskripsi:** Berkas uji asli tidak ada (Q-04). Tulis ulang `tests/` (runner `tsx`, `node:assert`) dari 7 kasus bukti TASK-029: tarif deal harian, status unit parkir, soft cancel, backup DB korup, auto-snapshot impor, normalizer jam/tanggal, link WA jujur. Kode `src/` hanya dibaca. Bila perilaku kode berbeda dari bukti lama, selisih dilaporkan ke pengguna sebelum uji dikunci.
 * **Dependensi:** `TASK-030`
-* **File:** `tests/business-logic.test.ts`, `package.json`
+* **File:** `tests/*`, `package.json` (hanya entri `scripts.test`)
 * **Docs Terkait (Tier 1):** `src/services/bookingEngine.ts`, `src/services/storageService.ts`, `src/services/whatsappService.ts`, `src/utils/whatsappChatParser.ts`
-* **Docs Impact:** `BLUEPRINT.md`, `README.md`, `SESSION_STATE.md`
+* **Docs Impact:** `BLUEPRINT.md` (bagian 8), `README.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Berkas suite pengujian `tests/business-logic.test.ts` memuat 7 kasus uji logika bisnis.
-  2. Perintah `npm run test` mengeksekusi tsx dan lulus 7/7 tes dengan exit code 0.
-  3. Satu-satunya modifikasi di `package.json` adalah penambahan script `test`.
-  4. Seluruh kode `src/` tidak berubah.
-* **Test Case:** 7/7 test logic execution
-* **Metode Verifikasi:** Jalankan `npm run test`, `npm run lint`, `npm run build`, dan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. 7 kasus uji ada di `tests/` dan `npm run test` lolos 7/7.
+  2. Satu-satunya perubahan `package.json` = entri `scripts.test`; `src/` tidak berubah.
+  3. Selisih antara bukti TASK-029 dan perilaku kode aktual (bila ada) dilaporkan tertulis.
+* **Test Case:** Regresi logika bisnis PWA
+* **Metode Verifikasi:** `npm run test`, lalu G3. Gerbang G3 (`BLUEPRINT.md` bagian 11 D): `npm run lint`, `npm run build`, `python3 scripts/zlce/zlce-check.py . --no-git`, `git diff --stat`; pengguna menempel output.
 
 ---
 
-### TASK-032: Pembersihan public/ & Penghapusan Dokumen Review (Butir A3)
+### TASK-032: Bersihkan public/ & Hapus Dokumen Review (REV-10 / A3)
 * **Fase:** FASE 14
-* **Deskripsi:** Membersihkan berkas dokumen review Markdown dari direktori `public/` agar tidak ikut terbundel ke dalam artefak produksi `dist/` PWA. Menghapus dokumen review pada `docs/` (`CLAUDE_PROMPT.md`, `CLAUDE_REVIEW_GUIDE.md`, `REVIEW_ACTION_PLAN.md`) dan `public/assets/aistudio/*.md` sesuai instruksi pengguna ("pembersihan public/ ok, review di docs/ dan docs/periksa dibuang").
+* **Deskripsi:** Hapus `public/assets/aistudio/review_3ef8cfc7.md` (ikut terkirim ke `dist/`), `docs/CLAUDE_PROMPT.md`, `docs/CLAUDE_REVIEW_GUIDE.md`, `docs/REVIEW_ACTION_PLAN.md`, dan folder `docs/periksa/` (2 berkas). Persetujuan pengguna: dihapus, tidak digabung. Riwayat tetap tersimpan di git. Perbarui rujukan aktif.
 * **Dependensi:** `TASK-030`
-* **File:** `public/`, `docs/`, `SESSION_STATE.md`
-* **Docs Terkait (Tier 1):** `BLUEPRINT.md`, `README.md`
+* **File:** `public/assets/aistudio/review_3ef8cfc7.md`, `docs/CLAUDE_PROMPT.md`, `docs/CLAUDE_REVIEW_GUIDE.md`, `docs/REVIEW_ACTION_PLAN.md`, `docs/periksa/*`, `README.md`
+* **Docs Terkait (Tier 1):** `BLUEPRINT.md`
 * **Docs Impact:** `README.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Direktori `public/assets/aistudio/*.md` dibersihkan sehingga `dist/` tidak memuat berkas review markdown.
-  2. Dokumen review lama pada `docs/` dihapus bersih tanpa menyisakan tautan rusak di dokumentasi.
-  3. PWA manifest, service worker, ikon, dan aset PWA tetap utuh.
-* **Test Case:** Clean build inspection & zero orphan review markdown
-* **Metode Verifikasi:** Jalankan `npm run build`, `npm run lint`, dan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. `dist/` tidak memuat berkas `.md`.
+  2. Berkas yang disetujui dihapus; `docs/` hanya berisi 2 dokumen integrasi (+ `USAGE.md` sampai `TASK-034`).
+  3. 0 rujukan aktif ke path yang dihapus (di luar catatan riwayat `SESSION_STATE.md`, `TASKS.md`, `CHANGELOG.md`).
+  4. Tidak ada berkas beku lain berubah.
+* **Test Case:** Hygiene aset PWA
+* **Metode Verifikasi:** `find dist -name "*.md"` kosong, `grep -rn "CLAUDE_PROMPT\|CLAUDE_REVIEW_GUIDE\|REVIEW_ACTION_PLAN\|docs/periksa\|aistudio" . --include=*.md --include=*.ts --include=*.tsx`, lalu G3.
 
 ---
 
-### TASK-033: Pemulihan AI_WORKFLOW.md (Butir Z1)
-* **Fase:** FASE 14
-* **Deskripsi:** Memulihkan dokumen kontrol otoritatif `AI_WORKFLOW.md` di root proyek dari `templates/AI_WORKFLOW.template.md`, disesuaikan untuk konteks RyokoRent dan ZLCE Mode Simple (konvensi, enum status, guardrails, tier baca, protokol WAL, triase level S/M/L, integrasi git, CHECKPOINT BLOCK, dan prosedur pemulihan A-D).
+### TASK-033: Pulihkan AI_WORKFLOW.md (REV-10 / Z1)
+* **Fase:** FASE 15
+* **Deskripsi:** Isi `AI_WORKFLOW.md` dari `templates/AI_WORKFLOW.template.md` untuk RyokoRent: konvensi, enum, guardrail, tier baca, verifikasi, triase, git, CHECKPOINT BLOCK, recovery A-D, mode LITE. Format `SESSION_STATE.md` tidak diubah.
 * **Dependensi:** `TASK-030`
-* **File:** `AI_WORKFLOW.md`, `SESSION_STATE.md`
-* **Docs Terkait (Tier 1):** `templates/AI_WORKFLOW.template.md`, `HANDOVER.md`, `scripts/zlce/zlce-check.py`
-* **Docs Impact:** `HANDOVER.md`, `SESSION_STATE.md`, `BLUEPRINT.md`
+* **File:** `AI_WORKFLOW.md`
+* **Docs Terkait (Tier 1):** `templates/AI_WORKFLOW.template.md`, `HANDOVER_PROMPT.md`, `scripts/zlce/zlce-check.py`
+* **Docs Impact:** `HANDOVER.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Berkas `AI_WORKFLOW.md` terpasang di root proyek dengan 10 bagian lengkap dan spesifikasi CHECKPOINT BLOCK terdefinisi.
-  2. Aturan status dan enum selaras 100% dengan skrip validator `zlce-check.py`.
-  3. `zlce-check.py` lolos tanpa error.
-* **Test Case:** AI_WORKFLOW file presence & validator check
-* **Metode Verifikasi:** Jalankan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. `AI_WORKFLOW.md` bagian 1-10 terisi dan CHECKPOINT BLOCK terdefinisi.
+  2. Enum dan aturan selaras dengan `zlce-check.py`.
+  3. zlce-check tetap `0 error`.
+* **Test Case:** Kelengkapan aturan kerja ZLCE
+* **Metode Verifikasi:** G3 + `grep -c "^## " AI_WORKFLOW.md` >= 10.
 
 ---
 
-### TASK-034: Konsolidasi Panduan ke AI_WORKFLOW.md & Ketentuan Operasional ke README.md (Butir Z2)
-* **Fase:** FASE 14
-* **Deskripsi:** Mengonsolidasikan isi unik panduan kerja dari `docs/USAGE.md` (Bagian 1-5 matriks situasi & 3 jalur kerja), `CONTRIBUTING.md` (aturan verifikasi & perubahan kit), dan `templates/CHECKLISTS.template.md` ke dalam `AI_WORKFLOW.md`. Memindahkan isi Bagian 6 `docs/USAGE.md` (ketentuan operasional rental, tarif F-03, jam WIB, state machine) ke dalam `README.md` agar tidak hilang. Menghapus berkas redundan `docs/USAGE.md` dan `CONTRIBUTING.md`.
+### TASK-034: Gabung Panduan ke AI_WORKFLOW.md (REV-10 / Z2)
+* **Fase:** FASE 15
+* **Deskripsi:** Serap `docs/USAGE.md` bagian 1-5, `CONTRIBUTING.md`, dan `templates/CHECKLISTS.template.md` ke `AI_WORKFLOW.md`. Pindahkan `USAGE.md` bagian 6 (ketentuan operasional aplikasi) utuh ke `README.md`. Hapus `docs/USAGE.md` dan `CONTRIBUTING.md`.
 * **Dependensi:** `TASK-033`
 * **File:** `AI_WORKFLOW.md`, `README.md`, `docs/USAGE.md`, `CONTRIBUTING.md`
-* **Docs Terkait (Tier 1):** `docs/USAGE.md`, `CONTRIBUTING.md`, `README.md`
+* **Docs Terkait (Tier 1):** `docs/USAGE.md`, `CONTRIBUTING.md`, `templates/CHECKLISTS.template.md`
 * **Docs Impact:** `AI_WORKFLOW.md`, `README.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Ketentuan operasional rental dari USAGE Bagian 6 tersimpan utuh di `README.md`.
-  2. Aturan operasional agen ZLCE terkonsolidasi di `AI_WORKFLOW.md`.
-  3. Berkas `docs/USAGE.md` dan `CONTRIBUTING.md` dihapus, 0 rujukan rusak.
-* **Test Case:** Content preservation & orphan reference audit
-* **Metode Verifikasi:** Jalankan `npm run lint`, `npm run build`, dan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. Isi unik USAGE 1-5, CONTRIBUTING, dan CHECKLISTS ada di `AI_WORKFLOW.md`.
+  2. USAGE bagian 6 tercatat utuh di `README.md`.
+  3. 0 rujukan aktif ke `USAGE.md` dan `CONTRIBUTING.md`.
+* **Test Case:** Kelengkapan penggabungan & tautan
+* **Metode Verifikasi:** `diff` bagian 6, `grep` rujukan, lalu G3.
 
 ---
 
-### TASK-035: Integrasi HANDOVER_PROMPT.md ke HANDOVER.md (Butir Z3)
-* **Fase:** FASE 14
-* **Deskripsi:** Menyatukan berkas prompt serah terima `HANDOVER_PROMPT.md` ke dalam `HANDOVER.md` sebagai panduan cara pakai lengkap beserta blok prompt pemulihan sesi siap salin yang identik. Menghapus berkas redundan `HANDOVER_PROMPT.md` di root dan memperbarui referensi terkait.
+### TASK-035: Gabung HANDOVER_PROMPT.md ke HANDOVER.md (REV-10 / Z3)
+* **Fase:** FASE 15
+* **Deskripsi:** `HANDOVER.md` = 'Cara Pakai' + blok prompt (isi blok tidak diubah). Hapus `HANDOVER_PROMPT.md`.
 * **Dependensi:** `TASK-033`
-* **File:** `HANDOVER.md`, `HANDOVER_PROMPT.md`, `SESSION_STATE.md`
-* **Docs Terkait (Tier 1):** `HANDOVER.md`, `HANDOVER_PROMPT.md`, `AI_WORKFLOW.md`
+* **File:** `HANDOVER.md`, `HANDOVER_PROMPT.md`
+* **Docs Terkait (Tier 1):** `HANDOVER.md`, `HANDOVER_PROMPT.md`
 * **Docs Impact:** `HANDOVER.md`, `AI_WORKFLOW.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. `HANDOVER.md` memuat panduan cara pakai dan blok prompt serah terima terpadu.
-  2. `HANDOVER_PROMPT.md` dihapus dan tidak ada tautan patah di repositori.
-* **Test Case:** Handover prompt completeness & reference audit
-* **Metode Verifikasi:** Jalankan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. Blok prompt di `HANDOVER.md` identik byte-per-byte dengan blok `HANDOVER_PROMPT.md` lama.
+  2. `HANDOVER_PROMPT.md` terhapus dan 0 rujukan aktif.
+* **Test Case:** Integritas prompt handover
+* **Metode Verifikasi:** `diff` blok sebelum/sesudah, `grep` rujukan, G3.
 
 ---
 
-### TASK-036: Restrukturisasi Folder zlce-kit/ & Rampingkan Generator Template (Butir Z4)
-* **Fase:** FASE 14
-* **Deskripsi:** Merapikan generator kit ZLCE dengan memindahkan berkas pembuat proyek baru (`LANDING_PROMPT.md`, `ZLCE_KIT_SINGLE.md`, folder `templates/`, `examples/`) ke dalam direktori khusus `zlce-kit/`. Menggabungkan template mode penuh (`ARCHITECTURE`, `DATA_MODEL`, `TESTING`, `CHECKLISTS`) menjadi satu template komprehensif `FULL_MODE.template.md` di `zlce-kit/templates/` tanpa mengurangi kapabilitas.
+### TASK-036: Pindah & Rampingkan Generator Kit ke zlce-kit/ (REV-10 / Z4)
+* **Fase:** FASE 15
+* **Deskripsi:** Pindah `LANDING_PROMPT.md`, `ZLCE_KIT_SINGLE.md`, `templates/`, `examples/` ke `zlce-kit/`. Gabung template `ARCHITECTURE`, `DATA_MODEL`, `TESTING`, `CHECKLISTS` menjadi `FULL_MODE.template.md` (kapabilitas FULL tetap). Perbarui rujukan. `scripts/zlce/` tidak dipindah (K3). Generator dokumen proyek dan generator snapshot tetap utuh (Q-06).
 * **Dependensi:** `TASK-034`, `TASK-035`
-* **File:** `zlce-kit/`, `LANDING_PROMPT.md`, `ZLCE_KIT_SINGLE.md`, `templates/`, `examples/`
-* **Docs Terkait (Tier 1):** `LANDING_PROMPT.md`, `ZLCE_KIT_SINGLE.md`
-* **Docs Impact:** `AI_WORKFLOW.md`, `README.md`, `SESSION_STATE.md`
+* **File:** `zlce-kit/**`, `LANDING_PROMPT.md`, `ZLCE_KIT_SINGLE.md`, `templates/*`, `examples/*`
+* **Docs Terkait (Tier 1):** `LANDING_PROMPT.md`, `ZLCE_KIT_SINGLE.md`, `templates/*`
+* **Docs Impact:** `LANDING_PROMPT.md`, `AI_WORKFLOW.md`, `README.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Direktori `zlce-kit/` terbentuk memuat generator kit terisolasi rapi.
-  2. Template FULL_MODE mencakup seluruh bagian arsitektur, data model, testing, dan checklists.
-  3. Perintah verifikasi `python3 scripts/zlce/zlce-check.py --state zlce-kit/examples/SESSION_STATE.example.md --no-git` berhasil lolos OK.
-* **Test Case:** Template integrity & example session state check
-* **Metode Verifikasi:** Jalankan `python3 scripts/zlce/zlce-check.py . --no-git` dan verifikasi file tree.
+  1. Struktur `zlce-kit/` sesuai `USULAN_RESTRUKTURISASI_PWA_ZLCE.md` bagian 3.
+  2. `FULL_MODE.template.md` memuat 4 bagian asal secara utuh.
+  3. `python3 scripts/zlce/zlce-check.py --state zlce-kit/examples/SESSION_STATE.example.md --no-git` = OK.
+  4. 0 rujukan aktif ke path lama.
+* **Test Case:** Integritas generator kit
+* **Metode Verifikasi:** Perintah zlce-check pada contoh, `grep` rujukan, G3.
 
 ---
 
-### TASK-037: Pembuatan Generator Kit Otomatis scripts/zlce/zlce-bundle.py (Butir Z5)
-* **Fase:** FASE 14
-* **Deskripsi:** Membangun skrip automasi baru `scripts/zlce/zlce-bundle.py` yang secara deterministik merangkai seluruh generator template dan prompt dari `zlce-kit/` menjadi satu file tunggal `zlce-kit/ZLCE_KIT_SINGLE.md`. Menyediakan mode `--check` untuk memvalidasi apakah berkas bundel sinkron dengan sumber tanpa ada perubahan manual yang terlepas.
+### TASK-037: Skrip zlce-bundle.py (REV-10 / Z5)
+* **Fase:** FASE 15
+* **Deskripsi:** Tambah `scripts/zlce/zlce-bundle.py`: menghasilkan `zlce-kit/ZLCE_KIT_SINGLE.md` dari berkas sumber, dengan mode `--check` (exit 1 bila tidak sinkron). Tiga skrip lama tidak diubah.
 * **Dependensi:** `TASK-036`
 * **File:** `scripts/zlce/zlce-bundle.py`, `zlce-kit/ZLCE_KIT_SINGLE.md`
-* **Docs Terkait (Tier 1):** `zlce-kit/ZLCE_KIT_SINGLE.md`, `scripts/zlce/zlce-check.py`
+* **Docs Terkait (Tier 1):** `zlce-kit/ZLCE_KIT_SINGLE.md`
 * **Docs Impact:** `AI_WORKFLOW.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Skrip `scripts/zlce/zlce-bundle.py` mampu meregenerasi `zlce-kit/ZLCE_KIT_SINGLE.md`.
-  2. Mode `python3 scripts/zlce/zlce-bundle.py --check` keluar dengan exit code 0 saat sinkron dan 1 jika berkas diubah tanpa regenerasi.
-  3. Skrip lama (`zlce-check.py`, `zlce-collect.py`, `zlce-snapshot.sh`) tidak mengalami perubahan integritas fungsi.
-* **Test Case:** Bundle generation & integrity verification
-* **Metode Verifikasi:** Jalankan `python3 scripts/zlce/zlce-bundle.py --check` dan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. Bundel hasil skrip setara isi kit sumber (tanpa selisih bermakna).
+  2. `--check` exit 0 saat sinkron dan exit 1 saat sengaja dirusak.
+  3. `sha256sum` tiga skrip lama sama dengan sebelum task.
+* **Test Case:** Sinkronisasi kit otomatis
+* **Metode Verifikasi:** Jalankan skrip dua kali + uji rusak, `sha256sum scripts/zlce/zlce-check.py zlce-collect.py zlce-snapshot.sh`, G3.
 
 ---
 
-### TASK-038: Perapian ZLCE Studio di RecoveryTab & src/types/zlce.ts (Butir Z6)
-* **Fase:** FASE 14
-* **Deskripsi:** Menyelaraskan teks template prompt handover yang dihasilkan oleh komponen UI `RecoveryTab.tsx` agar identik dengan blok prompt resmi `HANDOVER.md`. Menghapus enum `TabType` usang di `src/types/zlce.ts` yang tidak lagi dipakai tanpa memutus antarmuka atau logika wizard pemulihan sesi (Wizard A-D, preset, copy prompt, dan snapshot).
+### TASK-038: Rapikan ZLCE Studio (REV-10 / Z6)
+* **Fase:** FASE 15
+* **Deskripsi:** Sinkronkan string prompt handover di `RecoveryTab.tsx` dengan blok `HANDOVER.md`; hapus `TabType` usang di `src/types/zlce.ts` (tidak dipakai berkas lain). Semua fitur Recovery (wizard A-D, preset, bundel handover, snapshot) tetap.
 * **Dependensi:** `TASK-035`, `TASK-031`
 * **File:** `src/components/RecoveryTab.tsx`, `src/types/zlce.ts`
-* **Docs Terkait (Tier 1):** `HANDOVER.md`, `src/components/RecoveryTab.tsx`
-* **Docs Impact:** `BLUEPRINT.md`, `SESSION_STATE.md`
+* **Docs Terkait (Tier 1):** `src/components/RecoveryTab.tsx`, `src/types/zlce.ts`, `HANDOVER.md`
+* **Docs Impact:** `BLUEPRINT.md` (M-07), `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Generator prompt di `RecoveryTab.tsx` selaras dengan format `HANDOVER.md`.
-  2. `TabType` usang dibersihkan dari `src/types/zlce.ts`.
-  3. Seluruh fitur wizard Recovery di UI berfungsi normal.
-  4. Kompilasi TypeScript `npm run lint`, `npm run build`, dan `npm run test` lolos 100%.
-* **Test Case:** Studio recovery generation & TypeScript build test
-* **Metode Verifikasi:** Jalankan `npm run lint`, `npm run test`, `npm run build`, dan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. Prompt di Recovery = blok `HANDOVER.md`.
+  2. `tsc` 0 error, `build` lolos, `npm run test` lolos.
+  3. Daftar uji manual Recovery (wizard A-D, preset, bundel handover, salin snapshot) lolos; pengguna menempel hasil.
+  4. `git diff --stat` hanya 2 berkas Studio + dokumen.
+* **Test Case:** Studio tetap berfungsi
+* **Metode Verifikasi:** G3 + `npm run test` + uji manual di browser.
 
 ---
 
-### TASK-039: Normalisasi Versi (Aplikasi v3.5.0, ZLCE v3.3.0) & Hygiene State (Butir Z7)
-* **Fase:** FASE 14
-* **Deskripsi:** Menetapkan standarisasi versi formal: Aplikasi RyokoRent berlabel `v3.5.0` dan metodologi ZLCE berlabel `v3.3.0` di seluruh dokumen (`BLUEPRINT.md`, `README.md`, `CHANGELOG.md`, `AI_WORKFLOW.md`, `HANDOVER.md`, `SESSION_STATE.md`). Menghapus referensi klaim berkas fiktif (`templates.ts`, `ZlceTab.tsx`, wrapper root). Menyelaraskan timestamp audit resmi `SESSION_STATE.md` dan menyesuaikan redaksi `SECURITY.md` untuk RyokoRent & ZLCE.
+### TASK-039: Normalisasi Label Versi & Hygiene Dokumen (REV-10 / Z7)
+* **Fase:** FASE 15
+* **Deskripsi:** Label: aplikasi `3.5.0`, ZLCE `v3.2.2` (Opsi 2). Ubah `BLUEPRINT.md` baris 3 dan `README.md` baris 196 menjadi ZLCE v3.2.2. Hapus klaim `templates.ts`, `ZlceTab.tsx`, wrapper root, tab Studio yang tidak ada. Redaksi ulang `SECURITY.md` untuk RyokoRent + ZLCE. `Timestamp Audit` tidak dimajukan (ASM-04). Arsip log lama ke `docs/archive/` bersifat opsional.
 * **Dependensi:** `TASK-036`
-* **File:** `BLUEPRINT.md`, `SECURITY.md`, `CHANGELOG.md`, `README.md`, `SESSION_STATE.md`
-* **Docs Terkait (Tier 1):** Semua dokumen kontrol
-* **Docs Impact:** Seluruh dokumen kontrol proyek
+* **File:** `BLUEPRINT.md`, `README.md`, `SECURITY.md`, `zlce-kit/**`, `AI_WORKFLOW.md`
+* **Docs Terkait (Tier 1):** `BLUEPRINT.md`, `SECURITY.md`
+* **Docs Impact:** `BLUEPRINT.md`, `README.md`, `SECURITY.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Pelabelan versi konsisten: Aplikasi `v3.5.0` dan ZLCE `v3.3.0`.
-  2. Klaim berkas dan tab yang tidak ada dihapus bersih.
-  3. `SECURITY.md` mencerminkan kebijakan keamanan RyokoRent dan ZLCE.
-  4. Timestamp audit `SESSION_STATE.md` tersinkronisasi rapi.
-* **Test Case:** Version consistency & state hygiene check
-* **Metode Verifikasi:** Jalankan `python3 scripts/zlce/zlce-check.py . --no-git`.
+  1. `grep` label ZLCE hanya `v3.2.2`; label aplikasi hanya `3.5.0`.
+  2. 0 klaim berkas atau tab yang tidak ada.
+  3. Format `SESSION_STATE.md` tidak berubah dan zlce-check `0 error`.
+* **Test Case:** Konsistensi dokumen
+* **Metode Verifikasi:** `grep -rn "templates.ts\|ZlceTab\|ZLCE v3.5.0" .`, G3.
 
 ---
 
-### TASK-040: Sinkronisasi Dokumen Akhir & Verifikasi Penuh G3 (Butir F1)
-* **Fase:** FASE 14
-* **Deskripsi:** Melakukan verifikasi penutup menyeluruh terhadap seluruh artefak: sinkronisasi `README.md` (struktur pohon berkas baru), `BLUEPRINT.md`, `CHANGELOG.md`, dan `SESSION_STATE.md`. Menjalankan pengujian 0 broken links / orphan references, pengujian unit 7/7, build produksi PWA (memastikan `dist/` memiliki `manifest.webmanifest` dan `sw.js` tanpa berkas `.md`), dan status validasi ZLCE akhir.
+### TASK-040: Sinkronisasi Dokumen & Verifikasi Akhir (REV-10 / F1)
+* **Fase:** FASE 16
+* **Deskripsi:** Perbarui `README.md` (struktur proyek), `BLUEPRINT.md` M-07, `CHANGELOG.md`, `SESSION_STATE.md`. Cek tautan mati dan jalankan seluruh gerbang.
 * **Dependensi:** `TASK-031`, `TASK-032`, `TASK-037`, `TASK-038`, `TASK-039`
-* **File:** Semua berkas dokumentasi kontrol dan status proyek
-* **Docs Terkait (Tier 1):** Seluruh dokumen proyek
+* **File:** `README.md`, `BLUEPRINT.md`, `CHANGELOG.md`, `SESSION_STATE.md`
+* **Docs Terkait (Tier 1):** semua berkas kontrol
 * **Docs Impact:** `README.md`, `BLUEPRINT.md`, `CHANGELOG.md`, `SESSION_STATE.md`
 * **Acceptance Criteria:**
-  1. Seluruh tes (`npm run test`) lolos 7/7.
-  2. Linter `npm run lint` lolos 0 error.
-  3. Build produksi `npm run build` sukses, service worker & manifest PWA terkonfirmasi di `dist/`.
-  4. `python3 scripts/zlce/zlce-check.py . --no-git` berstatus `RESULT: OK (0 error, 0 warn, 40 task)`.
-  5. Seluruh berkas beku PWA terjaga tanpa mutasi tak berizin.
-* **Test Case:** Full verification gate G3
-* **Metode Verifikasi:** Jalankan `npm run test && npm run lint && npm run build && python3 scripts/zlce/zlce-bundle.py --check && python3 scripts/zlce/zlce-check.py . --no-git`.
-
-
+  1. G3 lengkap + `npm run test` lolos.
+  2. 0 tautan mati.
+  3. `dist` memuat `manifest.webmanifest` dan `sw.js`.
+  4. `git diff --stat` terhadap baseline TASK-030: berkas beku hanya berubah sesuai pengecualian yang disetujui.
+* **Test Case:** Regresi akhir PWA & ZLCE
+* **Metode Verifikasi:** G3 lengkap + `npm run test`, pengguna menempel output.

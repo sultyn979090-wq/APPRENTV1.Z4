@@ -19,10 +19,10 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 
 * **Timestamp Audit:** 2026-10-26 16:25:00 WIB
 * **Cabang Git:** `main`
-* **Task Terakhir DONE:** `TASK-036`
-* **Task Aktif:** `TASK-037`
-* **Status Task Aktif:** `IN_PROGRESS`
-* **Task Berikutnya:** `TASK-038`
+* **Task Terakhir DONE:** `TASK-040`
+* **Task Aktif:** -
+* **Status Task Aktif:** DONE
+* **Task Berikutnya:** -
 
 ---
 
@@ -59,17 +59,17 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 | `TASK-027` | Pemisahan Kolom Tanggal/Jam Form Booking & Parser WhatsApp Multi-Format | TASK-026 | DONE | pemisahan kolom tanggal & jam di NewBookingModal.tsx aktif, normalisasi multi-format (4, 4.00, 4,00 -> 04:00, 16, 16.00, 16,00 -> 16:00, koma/titik), pembersihan timestamp WA prefix aktif; tsx unit test pass, lint 0 error | ya |
 | `TASK-028` | Normalisasi WhatsApp Jujur, Sanitasi Webhook Sheets & Aksi Telegram Nyata | TASK-027 | DONE | fallback dummy 6281234567890 dihapus 100%, link wa tanpa nomor membuka text-only share, flushOfflineSheetsQueue terpasang; tsx test pass, lint 0 error | ya |
 | `TASK-029` | PWA Prompt Update, Standarisasi Waktu WIB & Pengujian Otomatis | TASK-028 | DONE | PWA registerType prompt aktif di vite.config.ts, audit standarisasi waktu WIB konsisten, pengujian otomatis menyeluruh 7/7 lolos; npm run lint 0 error, build production sukses | ya |
-| `TASK-030` | Baseline & Batas Beku PWA (Butir A1) | TASK-029 | DONE | Batas Beku PWA & K1-K6 terdokumentasi di BLUEPRINT.md; lint 0 error, build lolos, zlce-check OK, 0 berkas src/ berubah | ya |
-| `TASK-031` | Pulihkan Suite Pengujian Logika 7 Kasus & Runner tsx (Butir A2) | TASK-030 | DONE | tests/business-logic.test.ts dibuat; npm run test 7/7 kasus lolos (25 sub-assert pass), tsc 0 error, build lolos, src/ tidak berubah | ya |
-| `TASK-032` | Pembersihan public/ & Penghapusan Dokumen Review (Butir A3) | TASK-030 | DONE | public/assets/aistudio dibersihkan, review di docs/ & docs/periksa/ dihapus; dist/ bersih bebas .md, build & lint lolos | ya |
-| `TASK-033` | Pemulihan AI_WORKFLOW.md (Butir Z1) | TASK-030 | DONE | AI_WORKFLOW.md dipulihkan di root dengan 10 seksi lengkap, konvensi ZLCE v3.3.0, checkpoint & recovery protocol; zlce-check OK 0 error | ya |
-| `TASK-034` | Konsolidasi Panduan ke AI_WORKFLOW.md & Ketentuan Operasional ke README.md (Butir Z2) | TASK-033 | DONE | Ketentuan Operasional di README.md seksi 6, AI_WORKFLOW.md diperkaya seksi 11-12, USAGE.md & CONTRIBUTING.md dihapus; test 25 pass, lint 0 error, build lolos | ya |
-| `TASK-035` | Integrasi HANDOVER_PROMPT.md ke HANDOVER.md (Butir Z3) | TASK-033 | DONE | HANDOVER.md memuat panduan cara pakai & blok prompt terpadu, HANDOVER_PROMPT.md dihapus; test 25 pass, lint 0 error, build lolos | ya |
-| `TASK-036` | Restrukturisasi Folder zlce-kit/ & Rampingkan Generator Template (Butir Z4) | TASK-034, TASK-035 | DONE | Direktori zlce-kit/ terbentuk rapi, FULL_MODE.template.md menggabungkan arsitektur, data model, testing, checklists; zlce-check --state zlce-kit/examples/SESSION_STATE.example.md lulus 0 error 0 warn | ya |
-| `TASK-037` | Pembuatan Generator Kit Otomatis scripts/zlce/zlce-bundle.py (Butir Z5) | TASK-036 | IN_PROGRESS | - | - |
-| `TASK-038` | Perapian ZLCE Studio di RecoveryTab & src/types/zlce.ts (Butir Z6) | TASK-035, TASK-031 | READY | - | - |
-| `TASK-039` | Normalisasi Versi (Aplikasi v3.5.0, ZLCE v3.3.0) & Hygiene State (Butir Z7) | TASK-036 | READY | - | - |
-| `TASK-040` | Sinkronisasi Dokumen Akhir & Verifikasi Penuh G3 (Butir F1) | TASK-031, TASK-032, TASK-037, TASK-038, TASK-039 | PENDING | - | - |
+| `TASK-030` | Baseline & Batas Beku PWA (REV-10 / A1) | TASK-029 | DONE | Batas Beku PWA & K1-K6 terdokumentasi di BLUEPRINT.md; lint 0 error, build lolos, zlce-check OK, 0 berkas src/ berubah | ya |
+| `TASK-031` | Pulihkan Suite Pengujian Logika PWA (REV-10 / A2) | TASK-030 | DONE | tests/business-logic.test.ts dibuat; npm run test 7/7 kasus lolos (25 sub-assert pass), tsc 0 error, build lolos, src/ tidak berubah | ya |
+| `TASK-032` | Bersihkan public/ & Hapus Dokumen Review (REV-10 / A3) | TASK-030 | DONE | public/assets/aistudio dibersihkan, review di docs/ & docs/periksa/ dihapus; dist/ bersih bebas .md, build & lint lolos | ya |
+| `TASK-033` | Pulihkan AI_WORKFLOW.md (REV-10 / Z1) | TASK-030 | DONE | AI_WORKFLOW.md dipulihkan di root dengan 10 seksi lengkap, konvensi ZLCE v3.2.2, checkpoint & recovery protocol; zlce-check OK 0 error | ya |
+| `TASK-034` | Gabung Panduan ke AI_WORKFLOW.md (REV-10 / Z2) | TASK-033 | DONE | Ketentuan Operasional di README.md seksi 6, AI_WORKFLOW.md diperkaya seksi 11-12, USAGE.md & CONTRIBUTING.md dihapus; test 25 pass, lint 0 error, build lolos | ya |
+| `TASK-035` | Gabung HANDOVER_PROMPT.md ke HANDOVER.md (REV-10 / Z3) | TASK-033 | DONE | HANDOVER.md memuat panduan cara pakai & blok prompt terpadu, HANDOVER_PROMPT.md dihapus; test 25 pass, lint 0 error, build lolos | ya |
+| `TASK-036` | Pindah & Rampingkan Generator Kit ke zlce-kit/ (REV-10 / Z4) | TASK-034, TASK-035 | DONE | Direktori zlce-kit/ terbentuk rapi, FULL_MODE.template.md menggabungkan arsitektur, data model, testing, checklists; zlce-check --state zlce-kit/examples/SESSION_STATE.example.md lulus 0 error 0 warn | ya |
+| `TASK-037` | Skrip zlce-bundle.py (REV-10 / Z5) | TASK-036 | DONE | scripts/zlce/zlce-bundle.py terpasang, regenerasi zlce-kit/ZLCE_KIT_SINGLE.md sukses, zlce-bundle.py --check exit 0, tsc 0 error, build lolos | ya |
+| `TASK-038` | Rapikan ZLCE Studio (REV-10 / Z6) | TASK-035, TASK-031 | DONE | RecoveryTab.tsx selaras dengan HANDOVER.md, TabType usang dibersihkan dari src/types/zlce.ts, lint 0 error, build lolos | ya |
+| `TASK-039` | Normalisasi Label Versi & Hygiene Dokumen (REV-10 / Z7) | TASK-036 | DONE | Label aplikasi 3.5.0, ZLCE v3.2.2 (Opsi 2) dinormalisasi di BLUEPRINT.md & README.md; 0 klaim berkas hantu (ZlceTab.tsx); SECURITY.md diperbarui; zlce-bundle --check OK; test 25 pass, lint 0 error | ya |
+| `TASK-040` | Sinkronisasi Dokumen & Verifikasi Akhir (REV-10 / F1) | TASK-031, TASK-032, TASK-037, TASK-038, TASK-039 | DONE | Gerbang G3 lengkap + test 25/25 pass, dist memuat manifest.webmanifest & sw.js, 0 .md di dist, 0 tautan mati, zlce-bundle --check OK, zlce-check 0 error 0 warn | ya |
 
 Bukti Verifikasi: ringkasan + lokasi bukti (mis. "lint 0 error, 12/12 test pass"). `DONE` tanpa bukti dan `Disetujui: ya` tidak valid.
 
@@ -79,13 +79,13 @@ Bukti Verifikasi: ringkasan + lokasi bukti (mis. "lint 0 error, 12/12 test pass"
 
 Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH langkah selesai. Kosongkan (semua `-`) saat task `DONE`.
 
-* **Task:** `TASK-037`
-* **Langkah Sedang Dikerjakan:** Pembuatan skrip generator kit scripts/zlce/zlce-bundle.py dengan opsi --check
-* **Berkas Direncanakan/Disentuh:** scripts/zlce/zlce-bundle.py, zlce-kit/ZLCE_KIT_SINGLE.md, SESSION_STATE.md
-* **Sudah Dilakukan:** Peta berkas zlce-kit dan struktur monolithic bundle disiapkan
-* **Langkah Berikutnya (persis):** Implementasikan zlce-bundle.py, regenerasi zlce-kit/ZLCE_KIT_SINGLE.md, jalankan mode --check, dan verifikasi
-* **Perintah Verifikasi:** python3 scripts/zlce/zlce-bundle.py --check && python3 scripts/zlce/zlce-check.py . --no-git
-* **Diperbarui:** 2026-10-26 16:25:00 WIB
+* **Task:** -
+* **Langkah Sedang Dikerjakan:** -
+* **Berkas Direncanakan/Disentuh:** -
+* **Sudah Dilakukan:** -
+* **Langkah Berikutnya (persis):** -
+* **Perintah Verifikasi:** -
+* **Diperbarui:** -
 
 ---
 
@@ -98,10 +98,13 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 | `ASM-03` | Asumsi | Posisi armada mencakup Pool Malang, Pool Batu, Servis, dan Dipakai Kurir (disertai nama kurir) | Alokasi armada tidak terdata | CONFIRMED |
 | `Q-01` | Pertanyaan | Apakah filter rekapitulasi laporan omset per rentang tanggal kustom diperlukan? | YA, diimplementasikan di Dashboard | ANSWERED |
 | `Q-02` | Pertanyaan | Apakah jumlah unit armada motor akan terus bertambah dinamis? | YA, struktur unit fisik dirancang tanpa batas kaku | ANSWERED |
-| `Q-04` | Pertanyaan | Ketersediaan berkas uji tsx asli 7 kasus | YA BUATKAN, diimplementasikan di tests/business-logic.test.ts | ANSWERED |
-| `Q-05` | Pertanyaan | Standarisasi skema versi aplikasi & ZLCE | Aplikasi v3.5.0, ZLCE v3.3.0 | ANSWERED |
-| `Q-06` | Pertanyaan | Generator ZLCE yang dipertahankan | Keduanya dipertahankan (snapshot UI & generator kit) | ANSWERED |
-| `Q-07` | Pertanyaan | Sinkronisasi timestamp audit SESSION_STATE.md | YA, diselaraskan | ANSWERED |
+| `Q-04` | Pertanyaan | Apakah berkas uji tsx asli (7 kasus bukti TASK-029) masih ada? | TIDAK ADA (jawaban pengguna). Suite uji ditulis ulang dari bukti tercatat + kode saat ini (A2); selisih perilaku dilaporkan | ANSWERED |
+| `Q-05` | Pertanyaan | Skema label versi: aplikasi vs ZLCE | Opsi 2 (jawaban pengguna): aplikasi tetap 3.5.0; label ZLCE kembali ke v3.2.2 (menggantikan usulan 3.3.0). Hanya BLUEPRINT.md baris 3 dan README.md baris 196 yang diubah (Z7) | ANSWERED |
+| `Q-06` | Pertanyaan | Cakupan 'ZLCE generator' yang dipertahankan | KEDUANYA (generator snapshot + generator dokumen proyek) dipertahankan (jawaban pengguna) | ANSWERED |
+| `Q-07` | Pertanyaan | Jam sumber untuk menyelaraskan Timestamp Audit | Pengguna menjawab YA, ditafsirkan sebagai izin menulis 'jam: ?' (ASM-04); tanpa jam sumber, Timestamp Audit tidak dimajukan | ANSWERED |
+| `ASM-04` | Asumsi | Jawaban 'YA' pada Q-07 = izin menulis 'jam: ?' (bukan pemberian jam baru) | Bila pengguna sebenarnya memberi jam, Timestamp Audit perlu diselaraskan | OPEN |
+| `Q-08` | Pertanyaan | Label v3.2.2 di berkas PWA beku (App.tsx, SettingsView.tsx, seedData.ts) diubah atau dibiarkan? | DIBIARKAN (konsekuensi Opsi 2: label kode sudah v3.2.2; 0 berkas PWA berubah) | ANSWERED |
+| `Q-09` | Pertanyaan | Bukti TASK-029 menyebut src/utils/time.ts, nowWibLabel() dan suite Vitest; ketiganya tidak ada di zip ini (utils/ tanpa time.ts, package.json tanpa vitest). Apakah zip ini versi lama dari repo kerja, atau berkas tersebut memang tidak pernah ada? | Bila zip bukan versi terbaru, baseline TASK-030 dan seluruh perubahan REV-10 harus diterapkan pada repo yang benar | OPEN |
 
 Status: `OPEN | CONFIRMED | REJECTED | ANSWERED`.
 
@@ -120,7 +123,7 @@ Status: `OPEN | CONFIRMED | REJECTED | ANSWERED`.
 | `REV-07` | S | Fitur Log Operasional Harian & Catatan Insiden Lapangan di Dashboard LocalStorage | Dituangkan ke TASK-017 |
 | `REV-08` | L | Perbaikan Tuntas 23 Temuan Audit @kepek (WIB offset, parser WA, guarded transitions, kuota/keamanan, integrasi eksternal, mobile PWA) | Dituangkan ke TASK-018 s/d TASK-022 |
 | `REV-09` | L | Remidiasi Lanjutan Review CGPT & Claude: F-03 tarif deal awal (harian tetap harian), pemisahan kolom tanggal/jam form booking & auto-format jam cerdas (4, 4.00, 4,00 -> 04:00), guarded booking lifecycle, proteksi korup storage, auto-snapshot restore, dan PWA prompt update | Dituangkan ke TASK-023 s/d TASK-029 |
-| `REV-10` | L | Restrukturisasi PWA & ZLCE Mode Simple: Pemisahan PWA & ZLCE, batas beku PWA, suite tes logika tsx 7 kasus, pembersihan dokumen review, pemulihan AI_WORKFLOW.md, restrukturisasi zlce-kit & zlce-bundle.py, harmonisasi versi Aplikasi v3.5.0 dan ZLCE v3.3.0 | Dituangkan ke TASK-030 s/d TASK-040 |
+| `REV-10` | L | Pemisahan PWA (beku) & ZLCE; ZLCE mode simple (gabung berkas serupa, pulihkan AI_WORKFLOW.md & suite uji, pertahankan scripts/zlce, ZLCE Studio, generator) | Usulan: USULAN_RESTRUKTURISASI_PWA_ZLCE.md; Disetujui (A3 diubah: dokumen review dihapus); dituangkan ke TASK-030 s/d TASK-040 |
 
 ---
 
@@ -140,6 +143,10 @@ Status: `OPEN | CONFIRMED | REJECTED | ANSWERED`.
 
 ## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
 
+* **2026-10-27 jam: ?:** TASK-040 selesai; Gerbang verifikasi akhir G3 lolos 100%, npm run test 25/25 assertion pass, dist/ memuat manifest.webmanifest & sw.js, zero .md di dist/, 0 tautan mati, zlce-bundle.py --check sinkron, zlce-check 0 error 0 warn 40 task DONE TASK-040.
+* **2026-10-27 jam: ?:** TASK-039 selesai; Normalisasi label versi: Aplikasi 3.5.0 dan ZLCE v3.2.2 (Opsi 2) di BLUEPRINT.md baris 3 dan README.md baris 196; pembersihan klaim modul hantu (ZlceTab.tsx di M-07); penulisan ulang SECURITY.md untuk RyokoRent PWA & ZLCE Studio; regenerasi zlce-kit/ZLCE_KIT_SINGLE.md TASK-039.
+* **2026-10-27 jam: ?:** TASK-038 selesai; Sinkronisasi antarmuka RecoveryTab.tsx dengan blok prompt HANDOVER.md, pembersihan tipe usang TabType dari src/types/zlce.ts, pengujian lint 0 error, build produksi PWA lolos TASK-038.
+* **2026-10-27 jam: ?:** TASK-037 selesai; Implementasi skrip automasi scripts/zlce/zlce-bundle.py dengan mode regenerasi dan validasi --check untuk mencegah drift kit, verifikasi exit 0 saat sinkron TASK-037.
 * **2026-10-26 16:25:00 WIB:** TASK-036 selesai; Restrukturisasi direktori zlce-kit/ berhasil mengisolasi LANDING_PROMPT.md, ZLCE_KIT_SINGLE.md, templates/, dan examples/; penggabungan 4 template mode penuh ke dalam FULL_MODE.template.md (11 berkas menjadi 8 berkas bersih); perbaikan dukungan --state pada scripts/zlce/zlce-check.py tervalidasi 0 error 0 warn pada berkas contoh SESSION_STATE.example.md TASK-036.
 * **2026-10-26 16:20:00 WIB:** TASK-035 selesai; Berkas HANDOVER_PROMPT.md diintegrasikan penuh ke dalam HANDOVER.md (memuat seluruh petunjuk operasional serah terima dan blok prompt siap salin yang paten), berkas duplikat HANDOVER_PROMPT.md di root resmi dihapus, verifikasi test 25 pass, lint 0 error, build lolos TASK-035.
 * **2026-10-26 16:15:00 WIB:** TASK-034 selesai; Bagian 6 Ketentuan Operasional Rental dipindahkan ke README.md seksi 6, panduan workflow kerja terpadu (Matriks Situasi Kerja, 3 Jalur Kerja, Pre-Merge & Pre-Production Checklists) dikonsolidasikan ke AI_WORKFLOW.md seksi 11-12, berkas duplikat docs/USAGE.md dan CONTRIBUTING.md resmi dihapus, verifikasi unit test 25 pass, lint 0 error, build produksi sukses TASK-034.

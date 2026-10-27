@@ -193,7 +193,7 @@ Format standar transaksi pemesanan unit RyokoRent:
   - **Pencegahan Korupsi Data**: Pencadangan otomatis payload rusak ke `ryokourent_db_corrupt_<timestamp>` jika JSON parse error terjadi
   - **Auto-Snapshot Restore**: Snapshot otomatis `ryokourent_snapshot_<timestamp>` sebelum data ditimpa saat impor database
   - **Single Unified Migration**: Satu jalur migrasi skema `migrateDatabase` untuk load awal dan impor file JSON
-- **Metodologi Pengembangan:** Zero-Loss Context Engineering (ZLCE) v3.5.0
+- **Metodologi Pengembangan:** Zero-Loss Context Engineering (ZLCE) v3.2.2
 
 ---
 

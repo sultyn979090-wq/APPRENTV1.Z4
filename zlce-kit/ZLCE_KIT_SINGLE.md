@@ -1,6 +1,6 @@
-# ZLCE KIT (SATU BERKAS) v3.3.0
+# ZLCE KIT (SATU BERKAS) v3.2.2
 
-Berkas ini adalah bundel tunggal (*monolithic bundle*) resmi Zero-Loss Context Engineering (ZLCE) v3.3.0.
+Berkas ini adalah bundel tunggal (*monolithic bundle*) resmi Zero-Loss Context Engineering (ZLCE) v3.2.2.
 Tujuan Utama: Memungkinkan pemakaian ZLCE pada AI berbasis chat/web prompt tunggal (seperti ChatGPT, Claude Web, atau IDE prompt) yang tidak mendukung upload direktori folder sekaligus.
 
 Setiap berkas di dalamnya dibatasi penanda:
